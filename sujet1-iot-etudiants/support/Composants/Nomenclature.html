@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>A2 — Nomenclature (BOM)</title>
+</head>
+<body>
+
+<h1>A2 — Nomenclature chiffrée (BOM)</h1>
+
+<p>Prix basés sur AliExpress (lot de 5+). Sources : AliExpress (AE), Mouser (MO), Amazon (AMZ).</p>
+<p>La limite de 30 € par enclos intérieur s'applique hors passerelle et infrastructure réseau.</p>
+
+<hr>
+
+<h2>Node type 1 — Enclos intérieur</h2>
+<p>Zones concernées : DES (×6), TRO (×6), QUA (×4), SOI (×3) — total 19 nodes.</p>
+
+<table border="1">
+<tr>
+  <th>Référence</th><th>Désignation</th><th>Qté/node</th>
+  <th>Prix unitaire (€)</th><th>Coût/node (€)</th><th>Source</th><th>Justification</th>
+</tr>
+<tr>
+  <td>ESP32-DEVKITV1</td><td>Module ESP32 DevKit V1 (38 broches)</td>
+  <td>1</td><td>3,50</td><td>3,50</td><td>AE</td>
+  <td>MCU WiFi, deep sleep, interruptions</td>
+</tr>
+<tr>
+  <td>DS18B20-WP</td><td>Sonde DS18B20 étanche IP67 câble 1 m</td>
+  <td>2</td><td>1,50</td><td>3,00</td><td>AE</td>
+  <td>Temp. point chaud + point froid, bus 1-Wire partagé</td>
+</tr>
+<tr>
+  <td>BH1750-MODULE</td><td>Module BH1750 I2C (GY-302)</td>
+  <td>1</td><td>1,00</td><td>1,00</td><td>AE</td>
+  <td>Capteur lumière I2C, plage 1–65 535 lx</td>
+</tr>
+<tr>
+  <td>REED-NC</td><td>Contact magnétique reed switch NO + aimant</td>
+  <td>1</td><td>0,50</td><td>0,50</td><td>AE</td>
+  <td>Détection ouverture porte par interruption GPIO</td>
+</tr>
+<tr>
+  <td>R-4K7</td><td>Résistance 4,7 kΩ (pull-up 1-Wire)</td>
+  <td>1</td><td>0,05</td><td>0,05</td><td>AE</td>
+  <td>Pull-up requis sur bus 1-Wire DS18B20</td>
+</tr>
+<tr>
+  <td>USB-5V-1A</td><td>Adaptateur secteur USB 5 V 1 A</td>
+  <td>1</td><td>2,00</td><td>2,00</td><td>AE</td>
+  <td>Alimentation secteur, régulateur 3,3 V intégré ESP32</td>
+</tr>
+<tr>
+  <td>CABLE-USB-A-MICRO</td><td>Câble USB-A vers Micro-USB 0,5 m</td>
+  <td>1</td><td>0,30</td><td>0,30</td><td>AE</td>
+  <td>Connexion alimentation ESP32</td>
+</tr>
+<tr>
+  <td>FILS-DUPONT</td><td>Fils Dupont 20 cm (lot 10)</td>
+  <td>1 lot</td><td>0,50</td><td>0,50</td><td>AE</td>
+  <td>Câblage sur breadboard prototype</td>
+</tr>
+<tr>
+  <td colspan="3"><strong>Total par node enclos intérieur</strong></td>
+  <td></td><td><strong>10,85 €</strong></td><td></td>
+  <td><strong>✓ Sous le plafond de 30 €</strong></td>
+</tr>
+</table>
+
+<hr>
+
+<h2>Node type 2 — Salle (ambiance + porte de salle)</h2>
+<p>Zones : DES, TRO, QUA, SOI — total 4 nodes.</p>
+
+<table border="1">
+<tr>
+  <th>Référence</th><th>Désignation</th><th>Qté/node</th>
+  <th>Prix unitaire (€)</th><th>Coût/node (€)</th><th>Source</th><th>Justification</th>
+</tr>
+<tr>
+  <td>ESP32-DEVKITV1</td><td>Module ESP32 DevKit V1</td>
+  <td>1</td><td>3,50</td><td>3,50</td><td>AE</td><td>MCU WiFi (ou LoRa pour QUA)</td>
+</tr>
+<tr>
+  <td>DS18B20-STD</td><td>Sonde DS18B20 standard (TO-92)</td>
+  <td>1</td><td>1,20</td><td>1,20</td><td>AE</td><td>Température ambiante salle</td>
+</tr>
+<tr>
+  <td>REED-NC</td><td>Contact magnétique reed switch NO</td>
+  <td>1</td><td>0,50</td><td>0,50</td><td>AE</td><td>Détection ouverture porte de salle</td>
+</tr>
+<tr>
+  <td>R-4K7</td><td>Résistance 4,7 kΩ</td>
+  <td>1</td><td>0,05</td><td>0,05</td><td>AE</td><td>Pull-up 1-Wire</td>
+</tr>
+<tr>
+  <td>USB-5V-1A</td><td>Adaptateur secteur USB 5 V 1 A</td>
+  <td>1</td><td>2,00</td><td>2,00</td><td>AE</td><td>Alimentation</td>
+</tr>
+<tr>
+  <td>CABLE-USB-A-MICRO</td><td>Câble USB-A Micro-USB 0,5 m</td>
+  <td>1</td><td>0,30</td><td>0,30</td><td>AE</td><td>Connexion alimentation</td>
+</tr>
+<tr>
+  <td colspan="3"><strong>Total par node salle</strong></td>
+  <td></td><td><strong>7,55 €</strong></td><td></td><td></td>
+</tr>
+</table>
+
+<hr>
+
+<h2>Node type 3 — Porte de bâtiment</h2>
+<p>3 portes : entrée, sas sanitaire, local nourriture.</p>
+
+<table border="1">
+<tr>
+  <th>Référence</th><th>Désignation</th><th>Qté/node</th>
+  <th>Prix unitaire (€)</th><th>Coût/node (€)</th><th>Source</th><th>Justification</th>
+</tr>
+<tr>
+  <td>ESP32-DEVKITV1</td><td>Module ESP32 DevKit V1</td>
+  <td>1</td><td>3,50</td><td>3,50</td><td>AE</td><td>MCU WiFi, interruption</td>
+</tr>
+<tr>
+  <td>REED-NC</td><td>Contact magnétique reed switch NO</td>
+  <td>1</td><td>0,50</td><td>0,50</td><td>AE</td><td>Détection ouverture porte bâtiment</td>
+</tr>
+<tr>
+  <td>USB-5V-1A</td><td>Adaptateur secteur USB 5 V 1 A</td>
+  <td>1</td><td>2,00</td><td>2,00</td><td>AE</td><td>Alimentation</td>
+</tr>
+<tr>
+  <td>CABLE-USB-A-MICRO</td><td>Câble USB-A Micro-USB 0,5 m</td>
+  <td>1</td><td>0,30</td><td>0,30</td><td>AE</td><td>Connexion alimentation</td>
+</tr>
+<tr>
+  <td colspan="3"><strong>Total par node porte bâtiment</strong></td>
+  <td></td><td><strong>6,30 €</strong></td><td></td><td></td>
+</tr>
+</table>
+
+<hr>
+
+<h2>Node type 4 — Enclos extérieur EXT</h2>
+<p>2 enclos tortues — sans alimentation secteur.</p>
+
+<table border="1">
+<tr>
+  <th>Référence</th><th>Désignation</th><th>Qté/node</th>
+  <th>Prix unitaire (€)</th><th>Coût/node (€)</th><th>Source</th><th>Justification</th>
+</tr>
+<tr>
+  <td>TTGO-LORA32-V2</td><td>TTGO LoRa32 V2 (ESP32 + SX1276 868 MHz)</td>
+  <td>1</td><td>8,00</td><td>8,00</td><td>AE</td><td>MCU LoRa 868 MHz, connecteur LiPo</td>
+</tr>
+<tr>
+  <td>DS18B20-WP</td><td>Sonde DS18B20 étanche IP67</td>
+  <td>1</td><td>1,50</td><td>1,50</td><td>AE</td><td>Température ambiante enclos</td>
+</tr>
+<tr>
+  <td>BH1750-MODULE</td><td>Module BH1750 I2C (GY-302)</td>
+  <td>1</td><td>1,00</td><td>1,00</td><td>AE</td><td>Lumière naturelle</td>
+</tr>
+<tr>
+  <td>REED-NC</td><td>Contact magnétique reed switch NO</td>
+  <td>1</td><td>0,50</td><td>0,50</td><td>AE</td><td>Détection ouverture porte enclos</td>
+</tr>
+<tr>
+  <td>R-4K7</td><td>Résistance 4,7 kΩ</td>
+  <td>1</td><td>0,05</td><td>0,05</td><td>AE</td><td>Pull-up 1-Wire</td>
+</tr>
+<tr>
+  <td>SOLAR-6V-1W</td><td>Panneau solaire 6 V 1 W (110 × 60 mm)</td>
+  <td>1</td><td>3,00</td><td>3,00</td><td>AE</td><td>Recharge LiPo, 1 h ensoleillement suffit</td>
+</tr>
+<tr>
+  <td>LIPO-3V7-3000</td><td>LiPo 3,7 V 3 000 mAh (103450)</td>
+  <td>1</td><td>5,00</td><td>5,00</td><td>AE</td><td>Stockage énergie — voir calcul A4</td>
+</tr>
+<tr>
+  <td>TP4056-MODULE</td><td>Module chargeur TP4056 avec protection</td>
+  <td>1</td><td>0,50</td><td>0,50</td><td>AE</td><td>Charge solaire → LiPo, protection surcharge</td>
+</tr>
+<tr>
+  <td>IP65-BOX</td><td>Boîtier plastique IP65 (100×68×50 mm)</td>
+  <td>1</td><td>3,00</td><td>3,00</td><td>AE</td><td>Protection intempéries, UV</td>
+</tr>
+<tr>
+  <td>FILS-DUPONT</td><td>Câbles Dupont + connecteurs étanches</td>
+  <td>1 lot</td><td>1,00</td><td>1,00</td><td>AE</td><td>Câblage interne boîtier</td>
+</tr>
+<tr>
+  <td colspan="3"><strong>Total par node extérieur</strong></td>
+  <td></td><td><strong>23,55 €</strong></td><td></td><td></td>
+</tr>
+</table>
+
+<hr>
+
+<h2>Récapitulatif par zone</h2>
+
+<table border="1">
+<tr>
+  <th>Zone</th><th>Type de node</th><th>Quantité</th>
+  <th>Coût/node (€)</th><th>Coût zone (€)</th>
+</tr>
+<tr><td>DES</td><td>Enclos intérieur</td><td>6</td><td>10,85</td><td>65,10</td></tr>
+<tr><td>DES</td><td>Salle</td><td>1</td><td>7,55</td><td>7,55</td></tr>
+<tr><td>TRO</td><td>Enclos intérieur</td><td>6</td><td>10,85</td><td>65,10</td></tr>
+<tr><td>TRO</td><td>Salle</td><td>1</td><td>7,55</td><td>7,55</td></tr>
+<tr><td>QUA</td><td>Enclos intérieur</td><td>4</td><td>10,85</td><td>43,40</td></tr>
+<tr><td>QUA</td><td>Salle</td><td>1</td><td>7,55</td><td>7,55</td></tr>
+<tr><td>SOI</td><td>Enclos intérieur</td><td>3</td><td>10,85</td><td>32,55</td></tr>
+<tr><td>SOI</td><td>Salle</td><td>1</td><td>7,55</td><td>7,55</td></tr>
+<tr><td>EXT</td><td>Enclos extérieur</td><td>2</td><td>23,55</td><td>47,10</td></tr>
+<tr><td>Bâtiment</td><td>Porte bâtiment</td><td>3</td><td>6,30</td><td>18,90</td></tr>
+<tr><td colspan="4"><strong>Total nodes</strong></td><td><strong>302,35 €</strong></td></tr>
+</table>
+
+<hr>
+
+<h2>Infrastructure (hors budget par enclos)</h2>
+
+<table border="1">
+<tr>
+  <th>Référence</th><th>Désignation</th><th>Qté</th>
+  <th>Prix unitaire (€)</th><th>Total (€)</th><th>Source</th>
+</tr>
+<tr>
+  <td>AP-WIFI-TPLINK</td><td>Point d'accès WiFi 2,4 GHz (TP-Link EAP115)</td>
+  <td>2</td><td>30,00</td><td>60,00</td><td>AMZ</td>
+</tr>
+<tr>
+  <td>GW-LORA-RAK7268</td><td>Passerelle LoRaWAN 8 canaux 868 MHz (RAK7268)</td>
+  <td>1</td><td>80,00</td><td>80,00</td><td>MO</td>
+</tr>
+<tr>
+  <td>RPI4-4GB</td><td>Raspberry Pi 4 4 GB (serveur + broker)</td>
+  <td>1</td><td>55,00</td><td>55,00</td><td>MO</td>
+</tr>
+<tr>
+  <td>SWITCH-8P</td><td>Switch Ethernet 8 ports (TP-Link LS1008)</td>
+  <td>1</td><td>15,00</td><td>15,00</td><td>AMZ</td>
+</tr>
+<tr>
+  <td>SD-32GB</td><td>Carte microSD 32 GB (OS RPi)</td>
+  <td>1</td><td>8,00</td><td>8,00</td><td>AMZ</td>
+</tr>
+<tr>
+  <td colspan="4"><strong>Total infrastructure</strong></td><td><strong>218,00 €</strong></td><td></td>
+</tr>
+</table>
+
+<hr>
+
+<h2>Budget total du site</h2>
+
+<table border="1">
+<tr><th>Poste</th><th>Montant (€)</th></tr>
+<tr><td>Nodes (19 intérieurs + 4 salles + 3 portes + 2 EXT)</td><td>302,35</td></tr>
+<tr><td>Infrastructure (AP, GW LoRa, serveur, switch)</td><td>218,00</td></tr>
+<tr><td><strong>Total général</strong></td><td><strong>520,35 €</strong></td></tr>
+</table>
+
+<h2>Vérification limite 30 € par enclos intérieur</h2>
+
+<table border="1">
+<tr><th>Node</th><th>Coût (€)</th><th>Limite</th><th>Résultat</th></tr>
+<tr><td>Enclos intérieur (DES/TRO/QUA/SOI)</td><td>10,85</td><td>30,00</td><td>✓ Conforme</td></tr>
+</table>
+
+<p>Marge disponible : 30 − 10,85 = <strong>19,15 €</strong> par enclos. Cette marge permet d'ajouter une protection boîtier ou un capteur d'humidité sans dépasser le plafond.</p>
+
+</body>
+</html>

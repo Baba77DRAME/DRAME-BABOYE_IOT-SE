@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>A1 — Choix des composants</title>
+</head>
+<body>
+
+<h1>A1 — Choix des composants</h1>
+
+<p>Notation de 1 (mauvais) à 5 (excellent). Score = somme des (note × poids).</p>
+
+<hr>
+
+<h2>Composant — Microcontrôleur</h2>
+
+<h3>Critères et poids</h3>
+<table border="1">
+<tr><th>Critère</th><th>Poids</th></tr>
+<tr><td>Coût</td><td>25</td></tr>
+<tr><td>WiFi/LoRa intégré</td><td>20</td></tr>
+<tr><td>Deep sleep (µA)</td><td>20</td></tr>
+<tr><td>GPIO / I2C / 1-Wire</td><td>15</td></tr>
+<tr><td>Disponibilité</td><td>10</td></tr>
+<tr><td>Facilité d'intégration</td><td>10</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>100</strong></td></tr>
+</table>
+
+<h3>Matrice de décision — nodes intérieurs (DES/TRO/QUA/SOI)</h3>
+<table border="1">
+<tr>
+  <th>Critère</th><th>Poids</th>
+  <th>ESP32 DevKit V1</th><th>Arduino Nano (ATmega328P)</th><th>Raspberry Pi Pico W</th>
+</tr>
+<tr><td>Coût (~3.5 € / ~4 € / ~6 €)</td><td>25</td><td>5</td><td>4</td><td>3</td></tr>
+<tr><td>WiFi intégré</td><td>20</td><td>5</td><td>1</td><td>5</td></tr>
+<tr><td>Deep sleep (~10 µA / pas / ~0.8 mA)</td><td>20</td><td>5</td><td>1</td><td>3</td></tr>
+<tr><td>GPIO / I2C / 1-Wire</td><td>15</td><td>5</td><td>4</td><td>4</td></tr>
+<tr><td>Disponibilité</td><td>10</td><td>5</td><td>5</td><td>4</td></tr>
+<tr><td>Intégration Arduino IDE</td><td>10</td><td>5</td><td>5</td><td>4</td></tr>
+<tr><td><strong>Score pondéré</strong></td><td></td><td><strong>500</strong></td><td><strong>300</strong></td><td><strong>375</strong></td></tr>
+</table>
+
+<h3>Matrice de décision — node extérieur EXT (basse consommation + longue portée)</h3>
+<table border="1">
+<tr>
+  <th>Critère</th><th>Poids</th>
+  <th>TTGO LoRa32 (ESP32+SX1276)</th><th>Arduino Pro Mini + RFM95W</th><th>Heltec LoRa32 V3</th>
+</tr>
+<tr><td>Coût (~8 € / ~7 € / ~9 €)</td><td>25</td><td>4</td><td>5</td><td>3</td></tr>
+<tr><td>LoRa 868 MHz intégré</td><td>20</td><td>5</td><td>4</td><td>5</td></tr>
+<tr><td>Deep sleep (10 µA / 0.36 µA / 10 µA)</td><td>20</td><td>4</td><td>5</td><td>4</td></tr>
+<tr><td>Gestion LiPo intégrée</td><td>15</td><td>5</td><td>1</td><td>5</td></tr>
+<tr><td>Disponibilité</td><td>10</td><td>5</td><td>4</td><td>4</td></tr>
+<tr><td>Facilité d'intégration</td><td>10</td><td>5</td><td>3</td><td>4</td></tr>
+<tr><td><strong>Score pondéré</strong></td><td></td><td><strong>460</strong></td><td><strong>375</strong></td><td><strong>420</strong></td></tr>
+</table>
+
+<p><strong>Choix :</strong></p>
+<ul>
+<li>Nodes intérieurs (DES/TRO/QUA/SOI) : <strong>ESP32 DevKit V1</strong> — WiFi intégré, deep sleep 10 µA, 34 GPIO, 3.5 €, Arduino IDE.</li>
+<li>Nodes extérieurs (EXT) : <strong>TTGO LoRa32</strong> — ESP32 + SX1276 LoRa 868 MHz, connecteur LiPo intégré, deep sleep.</li>
+</ul>
+
+<hr>
+
+<h2>Composant — Sonde de température</h2>
+
+<p>Exigences : ±0,5 °C, plage 5–55 °C.</p>
+
+<h3>Critères et poids</h3>
+<table border="1">
+<tr><th>Critère</th><th>Poids</th></tr>
+<tr><td>Précision (±°C)</td><td>30</td></tr>
+<tr><td>Plage de fonctionnement</td><td>25</td></tr>
+<tr><td>Coût</td><td>20</td></tr>
+<tr><td>Robustesse / environnement</td><td>15</td></tr>
+<tr><td>Facilité de câblage</td><td>10</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>100</strong></td></tr>
+</table>
+
+<h3>Matrice de décision</h3>
+<table border="1">
+<tr>
+  <th>Critère</th><th>Poids</th>
+  <th>DS18B20</th><th>DHT22</th><th>SHT31</th>
+</tr>
+<tr><td>Précision (±0,5 / ±0,5 / ±0,3 °C)</td><td>30</td><td>4</td><td>4</td><td>5</td></tr>
+<tr><td>Plage (−55/+125 / −40/+80 / −40/+125 °C)</td><td>25</td><td>5</td><td>5</td><td>5</td></tr>
+<tr><td>Coût (~1,5 € / ~2 € / ~3 €)</td><td>20</td><td>5</td><td>4</td><td>3</td></tr>
+<tr><td>Version IP67 disponible, bus 1-Wire chaînable</td><td>15</td><td>5</td><td>3</td><td>4</td></tr>
+<tr><td>Câblage (1 fil + GND/VCC)</td><td>10</td><td>5</td><td>3</td><td>4</td></tr>
+<tr><td><strong>Score pondéré</strong></td><td></td><td><strong>490</strong></td><td><strong>400</strong></td><td><strong>440</strong></td></tr>
+</table>
+
+<p><strong>Choix : DS18B20</strong> — précision ±0,5 °C, plage −55/+125 °C, version étanche IP67 disponible. Deux sondes partageant le même bus 1-Wire (GPIO unique), résistance de tirage 4,7 kΩ.</p>
+
+<hr>
+
+<h2>Composant — Capteur de lumière</h2>
+
+<p>Exigences : 0 à 100 000 lx (lampes DES jusqu'à 45 000 lx). Hypothèse : une plage mesurable jusqu'à 65 000+ lx couvre l'usage réel du centre.</p>
+
+<h3>Critères et poids</h3>
+<table border="1">
+<tr><th>Critère</th><th>Poids</th></tr>
+<tr><td>Plage de mesure (lx)</td><td>35</td></tr>
+<tr><td>Précision / linéarité</td><td>25</td></tr>
+<tr><td>Coût</td><td>20</td></tr>
+<tr><td>Interface et intégration</td><td>20</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>100</strong></td></tr>
+</table>
+
+<h3>Matrice de décision</h3>
+<table border="1">
+<tr>
+  <th>Critère</th><th>Poids</th>
+  <th>BH1750</th><th>TSL2591</th><th>LDR + ADC</th>
+</tr>
+<tr><td>Plage (1–65 535 lx / 188 µlx–88 000 lx / relative)</td><td>35</td><td>3</td><td>4</td><td>2</td></tr>
+<tr><td>Précision ±20 % / ±12 % / ±35 %</td><td>25</td><td>4</td><td>5</td><td>1</td></tr>
+<tr><td>Coût (~1 € / ~3 € / ~0,1 €)</td><td>20</td><td>5</td><td>3</td><td>5</td></tr>
+<tr><td>I2C direct, librairie Arduino</td><td>20</td><td>5</td><td>5</td><td>4</td></tr>
+<tr><td><strong>Score pondéré</strong></td><td></td><td><strong>420</strong></td><td><strong>420</strong></td><td><strong>255</strong></td></tr>
+</table>
+
+<p><strong>Choix : BH1750</strong> — ex-æquo avec TSL2591. Le BH1750 est retenu pour son coût (1 €) et sa suffisance pour la plage réelle (max 45 000 lx en DES). <em>Hypothèse :</em> la contrainte 100 000 lx couvre un usage potentiel de lampes à pleine puissance ; le BH1750 couvre la plage opérationnelle effective. Si des lampes > 65 000 lx sont installées, basculer vers TSL2591.</p>
+
+<hr>
+
+<h2>Composant — Contact d'ouverture de porte</h2>
+
+<p>Exigence : détection en moins de 2 secondes, mise en œuvre par interruption.</p>
+
+<h3>Critères et poids</h3>
+<table border="1">
+<tr><th>Critère</th><th>Poids</th></tr>
+<tr><td>Fiabilité (mécanique / sans usure)</td><td>40</td></tr>
+<tr><td>Coût</td><td>30</td></tr>
+<tr><td>Facilité de montage</td><td>30</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>100</strong></td></tr>
+</table>
+
+<h3>Matrice de décision</h3>
+<table border="1">
+<tr>
+  <th>Critère</th><th>Poids</th>
+  <th>Reed switch magnétique</th><th>Fin de course mécanique</th><th>Capteur IR réflexif</th>
+</tr>
+<tr><td>Fiabilité (~100 M cycles, sans contact)</td><td>40</td><td>5</td><td>3</td><td>4</td></tr>
+<tr><td>Coût (~0,5 € / ~1 € / ~1,5 €)</td><td>30</td><td>5</td><td>4</td><td>3</td></tr>
+<tr><td>Montage (collé sur enclos/terrarium)</td><td>30</td><td>5</td><td>3</td><td>3</td></tr>
+<tr><td><strong>Score pondéré</strong></td><td></td><td><strong>500</strong></td><td><strong>330</strong></td><td><strong>345</strong></td></tr>
+</table>
+
+<p><strong>Choix : reed switch (contact magnétique NO)</strong> — sans contact mécanique, montage adhésif, signal propre pour interruption GPIO.</p>
+
+<hr>
+
+<h2>Composant — Connectivité par zone</h2>
+
+<h3>Critères et poids</h3>
+<table border="1">
+<tr><th>Critère</th><th>Poids</th></tr>
+<tr><td>Portée effective (obstacles inclus)</td><td>30</td></tr>
+<tr><td>Consommation</td><td>25</td></tr>
+<tr><td>Coût (module)</td><td>20</td></tr>
+<tr><td>Latence (exigence porte < 2 s)</td><td>15</td></tr>
+<tr><td>Infrastructure existante</td><td>10</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>100</strong></td></tr>
+</table>
+
+<h3>Matrice de décision par zone</h3>
+<table border="1">
+<tr>
+  <th>Zone</th><th>Distance</th><th>Obstacle</th>
+  <th>WiFi 2.4 GHz</th><th>LoRaWAN 868 MHz</th><th>Zigbee 2.4 GHz</th><th>Choix</th>
+</tr>
+<tr>
+  <td>DES</td><td>12 m</td><td>Cloisons placo</td>
+  <td>✓ Score 440</td><td>Sur-dimensionné</td><td>Coordinateur requis</td>
+  <td><strong>WiFi</strong></td>
+</tr>
+<tr>
+  <td>TRO</td><td>18 m</td><td>Humidité 85 %</td>
+  <td>✓ Score 440</td><td>Sur-dimensionné</td><td>Coordinateur requis</td>
+  <td><strong>WiFi</strong></td>
+</tr>
+<tr>
+  <td>QUA</td><td>42 m</td><td>2 murs béton 30 cm</td>
+  <td>Limite — répéteur requis</td><td>✓ Score 460</td><td>Portée insuffisante</td>
+  <td><strong>LoRaWAN + GW</strong></td>
+</tr>
+<tr>
+  <td>SOI</td><td>9 m</td><td>Aucun</td>
+  <td>✓ Score 440</td><td>Sur-dimensionné</td><td>Coordinateur requis</td>
+  <td><strong>WiFi</strong></td>
+</tr>
+<tr>
+  <td>EXT</td><td>65 m</td><td>Extérieur, pas d'alim</td>
+  <td>Hors portée + conso</td><td>✓ Score 480</td><td>Hors portée</td>
+  <td><strong>LoRaWAN</strong></td>
+</tr>
+</table>
+
+<p><strong>Hypothèse QUA :</strong> deux murs béton de 30 cm atténuent le WiFi 2,4 GHz d'environ 20–30 dB chacun, rendant la liaison non fiable à 42 m. Une passerelle LoRa dans le bâtiment annexe est préférable.</p>
+<p><strong>Hypothèse :</strong> QUA et EXT partagent la même passerelle LoRa-Ethernet si la portée LoRa le permet (~1 km en espace libre).</p>
+
+<hr>
+
+<h2>Composant — Alimentation</h2>
+
+<h3>Nodes intérieurs (DES/TRO/QUA/SOI)</h3>
+<table border="1">
+<tr>
+  <th>Critère</th><th>Poids</th>
+  <th>Adaptateur USB 5 V + régulateur</th><th>Alimentation rail DIN 5 V</th><th>PoE 802.3af</th>
+</tr>
+<tr><td>Coût</td><td>35</td><td>5 (~2 €)</td><td>2 (~15 €)</td><td>1 (~25 €)</td></tr>
+<tr><td>Fiabilité</td><td>30</td><td>4</td><td>5</td><td>5</td></tr>
+<tr><td>Facilité d'installation</td><td>20</td><td>5</td><td>3</td><td>3</td></tr>
+<tr><td>Maintenance</td><td>15</td><td>4</td><td>5</td><td>4</td></tr>
+<tr><td><strong>Score</strong></td><td></td><td><strong>460</strong></td><td><strong>350</strong></td><td><strong>305</strong></td></tr>
+</table>
+
+<p><strong>Choix nodes intérieurs : adaptateur USB 5 V 1 A</strong> — ESP32 embarque un régulateur 3,3 V. Simple, remplacement immédiat.</p>
+
+<h3>Nodes extérieurs EXT</h3>
+<table border="1">
+<tr>
+  <th>Critère</th><th>Poids</th>
+  <th>Solaire 6 V 1 W + LiPo + TP4056</th><th>LiPo seule (3000 mAh)</th><th>3× AA + boost converter</th>
+</tr>
+<tr><td>Autonomie (6 mois minimum)</td><td>40</td><td>5 (illimitée)</td><td>4 (> 16 mois)</td><td>2 (~ 3 mois)</td></tr>
+<tr><td>Coût</td><td>25</td><td>3 (~8 €)</td><td>4 (~5 €)</td><td>5 (~2 €)</td></tr>
+<tr><td>Maintenance</td><td>20</td><td>5 (aucune)</td><td>3 (recharge annuelle)</td><td>2 (remplacement fréquent)</td></tr>
+<tr><td>Robustesse extérieur</td><td>15</td><td>4</td><td>4</td><td>3</td></tr>
+<tr><td><strong>Score</strong></td><td></td><td><strong>430</strong></td><td><strong>375</strong></td><td><strong>265</strong></td></tr>
+</table>
+
+<p><strong>Choix nodes EXT : panneau solaire 6 V 1 W + LiPo 3 000 mAh + TP4056</strong> — autonomie théoriquement illimitée en usage normal. Le calcul complet figure en A4.</p>
+
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>A3 — Node intérieur</title>
+</head>
+<body>
+
+<h1>A3 — Node intérieur</h1>
+
+<hr>
+
+<h2>Microcontrôleur retenu</h2>
+<p><strong>ESP32 DevKit V1</strong> — WiFi 2,4 GHz intégré, 34 GPIO, 2 bus I2C, interruptions sur tous les GPIO, deep sleep 10 µA, 3,3 V logique, Arduino IDE.</p>
+
+<hr>
+
+<h2>Capteurs et fonctions</h2>
+
+<table border="1">
+<tr><th>Fonction</th><th>Composant</th><th>Interface</th><th>GPIO</th></tr>
+<tr><td>Température point chaud</td><td>DS18B20 (sonde 1)</td><td>1-Wire</td><td>GPIO 4</td></tr>
+<tr><td>Température point froid</td><td>DS18B20 (sonde 2)</td><td>1-Wire partagé</td><td>GPIO 4</td></tr>
+<tr><td>Lumière</td><td>BH1750 (GY-302)</td><td>I2C</td><td>GPIO 21 (SDA) / GPIO 22 (SCL)</td></tr>
+<tr><td>Ouverture de porte</td><td>Reed switch NO</td><td>GPIO interruption</td><td>GPIO 2 (INPUT_PULLUP)</td></tr>
+</table>
+
+<hr>
+
+<h2>Schéma de câblage</h2>
+
+<pre>
+ESP32 DevKit V1
+                        3V3 ──────────────────────┬── DS18B20 (chaud) VCC
+                                                   ├── DS18B20 (froid) VCC
+                                                   └── BH1750 VCC
+
+                        GND ──────────────────────┬── DS18B20 (chaud) GND
+                                                   ├── DS18B20 (froid) GND
+                                                   ├── BH1750 GND
+                                                   └── Reed switch (borne 2)
+
+                       GPIO4 ──────────────────────┬── DS18B20 (chaud) DQ
+                                                   ├── DS18B20 (froid) DQ
+                                                   └── R 4,7 kΩ ── 3V3  (pull-up)
+
+                      GPIO21 (SDA) ────────────────── BH1750 SDA
+                      GPIO22 (SCL) ────────────────── BH1750 SCL
+                       BH1750 ADD ─────────────────── GND (adresse 0x23)
+
+                       GPIO2 ──────────────────────── Reed switch (borne 1)
+                               (INPUT_PULLUP interne, borne 2 vers GND)
+</pre>
+
+<p><strong>Note Wokwi :</strong> le BH1750 n'est pas un composant natif de Wokwi. Dans le simulateur, il est remplacé par un potentiomètre sur GPIO 34 (ADC). Le <code>diagram.json</code> et <code>sketch.ino</code> utilisent cette substitution. Le code production réel (avec BH1750 I2C) est fourni séparément dans <code>node-reel.ino</code>.</p>
+
+<hr>
+
+<h2>Procédure de simulation Wokwi</h2>
+
+<ol>
+<li>Aller sur <a href="https://wokwi.com">wokwi.com</a> → New Project → ESP32.</li>
+<li>Remplacer le contenu de <code>diagram.json</code> par le fichier <code>diagram.json</code> fourni.</li>
+<li>Remplacer le contenu de <code>sketch.ino</code> par le fichier <code>sketch.ino</code> fourni.</li>
+<li>Cliquer sur <strong>Start Simulation</strong>.</li>
+<li>Observer le moniteur série : des lignes JSON s'affichent toutes les 5 secondes (intervalle réduit pour la démo).</li>
+<li>Appuyer sur le bouton vert (reed switch simulé) : un message <code>{"type":"door","state":"open"}</code> s'affiche immédiatement — c'est l'interruption.</li>
+<li>Tourner le potentiomètre (lumière simulée) : la valeur <code>lux</code> change au prochain cycle.</li>
+</ol>
+
+<p><strong>Hypothèse :</strong> dans Wokwi, les deux DS18B20 retournent des températures simulées indépendantes par défaut. On peut modifier leurs attributs <code>temperature</code> dans le diagram.json pour simuler des scénarios (surchauffe, lampe bloquée).</p>
+
+<hr>
+
+<h2>Fichiers fournis</h2>
+
+<ul>
+<li><a href="sketch.ino">sketch.ino</a> — code Wokwi (potentiomètre pour lumière)</li>
+<li><a href="node-reel.ino">node-reel.ino</a> — code production (BH1750 I2C réel)</li>
+<li><a href="diagram.json">diagram.json</a> — schéma Wokwi complet</li>
+</ul>
+
+<hr>
+
+<h2>Limites et risques</h2>
+
+<ul>
+<li>Le BH1750 n'est pas simulable nativement dans Wokwi : la substitution par potentiomètre est suffisante pour valider la logique d'interruption et la sérialisation JSON, pas la précision photométrique.</li>
+<li>En zone TRO (humidité 85 %), prévoir un boîtier ventilé pour l'ESP32 et des sondes DS18B20 en version IP67.</li>
+<li>GPIO 2 est partagé avec la LED interne sur certaines versions DevKit — vérifier sur la révision utilisée.</li>
+</ul>
+
+</body>
+</html>
