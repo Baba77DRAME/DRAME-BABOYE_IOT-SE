@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>A4 — Node extérieur EXT</title>
+</head>
+<body>
+
+<h1>A4 — Node extérieur EXT (basse consommation)</h1>
+
+<hr>
+
+<h2>Microcontrôleur</h2>
+<p><strong>TTGO LoRa32 V2</strong> — ESP32 + SX1276 LoRa 868 MHz, connecteur LiPo JST intégré, deep sleep 10 µA, antenne SMA.</p>
+
+<hr>
+
+<h2>Capteurs</h2>
+
+<table border="1">
+<tr><th>Fonction</th><th>Composant</th><th>Justification</th></tr>
+<tr><td>Température ambiante</td><td>DS18B20 IP67</td><td>Étanche, précision ±0,5 °C, résiste −40/+125 °C</td></tr>
+<tr><td>Lumière naturelle</td><td>BH1750</td><td>Ensoleillement enclos tortues, I2C</td></tr>
+<tr><td>Ouverture porte enclos</td><td>Reed switch NO</td><td>Interruption wake-up depuis deep sleep</td></tr>
+</table>
+
+<hr>
+
+<h2>Alimentation</h2>
+
+<table border="1">
+<tr><th>Composant</th><th>Rôle</th></tr>
+<tr><td>Panneau solaire 6 V 1 W</td><td>Recharge LiPo via TP4056</td></tr>
+<tr><td>LiPo 3,7 V 3 000 mAh</td><td>Stockage énergie, alimentation TTGO</td></tr>
+<tr><td>Module TP4056 avec protection</td><td>Régulation charge, protection surcharge et sur-décharge</td></tr>
+<tr><td>Boîtier IP65</td><td>Protection intempéries</td></tr>
+</table>
+
+<hr>
+
+<h2>Stratégie de fonctionnement</h2>
+
+<table border="1">
+<tr><th>Paramètre</th><th>Valeur</th><th>Justification</th></tr>
+<tr><td>Fréquence de mesure</td><td>Toutes les 5 min</td><td>Détection rapide anomalie thermique</td></tr>
+<tr><td>Fréquence de transmission</td><td>Toutes les 15 min</td><td>3 mesures groupées, réduit le nombre de TX LoRa</td></tr>
+<tr><td>Mode principal</td><td>Deep sleep ESP32</td><td>Consommation 10 µA entre cycles</td></tr>
+<tr><td>Réveil périodique</td><td>Timer RTC interne ESP32</td><td>Déclenchement toutes les 5 min</td></tr>
+<tr><td>Réveil sur événement</td><td>Interruption GPIO (reed switch)</td><td>Ouverture de porte → wake-up immédiat + TX</td></tr>
+</table>
+
+<hr>
+
+<h2>Calcul d'autonomie</h2>
+
+<h3>Consommation par phase</h3>
+
+<table border="1">
+<tr><th>Phase</th><th>Courant</th><th>Durée par cycle 15 min</th><th>Charge (mAh)</th></tr>
+<tr><td>Deep sleep</td><td>0,010 mA</td><td>~893 s (3 cycles de 5 min − temps actifs)</td><td>0,00248 mAh</td></tr>
+<tr><td>Réveil + mesure DS18B20 + BH1750</td><td>45 mA</td><td>3 × 2 s = 6 s</td><td>0,075 mAh</td></tr>
+<tr><td>Transmission LoRa 868 MHz (14 dBm)</td><td>120 mA</td><td>1 × 0,1 s</td><td>0,0033 mAh</td></tr>
+<tr><td><strong>Total par cycle de 15 min</strong></td><td></td><td></td><td><strong>0,080 mAh</strong></td></tr>
+</table>
+
+<h3>Consommation moyenne</h3>
+
+<pre>
+Cycles par heure       : 4
+Consommation / heure   : 4 × 0,080 mAh = 0,320 mAh/h
+Consommation / jour    : 0,320 × 24 = 7,68 mAh/jour
+</pre>
+
+<h3>Autonomie batterie seule (sans solaire)</h3>
+
+<pre>
+Capacité batterie utile : 3 000 mAh × 0,85 (efficacité + dérating température) = 2 550 mAh
+Autonomie brute         : 2 550 / 0,320 = 7 968 h
+Autonomie en jours      : 7 968 / 24 = 332 jours
+Autonomie en mois       : 332 / 30 ≈ 11,1 mois
+</pre>
+
+<p><strong>Résultat : 11 mois sans recharge ni solaire ✓ (exigence : 6 mois minimum)</strong></p>
+
+<h3>Avec panneau solaire (maintenance nulle)</h3>
+
+<pre>
+Hypothèse hiver (pire cas) : 1 h d'ensoleillement effectif/jour
+Courant panneau 6 V 1 W    : 1 W / 6 V = 167 mA (pic)
+Efficacité TP4056 → LiPo   : 85 %
+Courant utile               : 167 × 0,85 = 142 mA
+Énergie rechargée / jour    : 142 mA × 1 h = 142 mAh/jour
+Énergie consommée / jour    : 7,68 mAh/jour
+Balance journalière         : +134 mAh/jour → batterie se recharge en hiver
+</pre>
+
+<p><strong>Avec panneau solaire, l'autonomie est théoriquement illimitée, même en hiver.</strong></p>
+
+<h3>Marge de sécurité</h3>
+
+<table border="1">
+<tr><th>Scénario</th><th>Autonomie</th><th>Exigence</th><th>Résultat</th></tr>
+<tr><td>Batterie seule, conditions normales</td><td>11,1 mois</td><td>6 mois</td><td>✓ Marge ×1,85</td></tr>
+<tr><td>Batterie seule, couverture nuageuse prolongée</td><td>11,1 mois</td><td>6 mois</td><td>✓</td></tr>
+<tr><td>Avec solaire (1 h/jour en hiver)</td><td>Illimitée</td><td>6 mois</td><td>✓✓</td></tr>
+</table>
+
+<hr>
+
+<h2>Limites et risques</h2>
+
+<ul>
+<li>Le TP4056 standard ne gère pas bien les panneaux solaires en courant variable. En production, préférer un module MPPT (ex. CN3791) pour optimiser la recharge.</li>
+<li>La LiPo 3,7 V fonctionne jusqu'à −20 °C mais sa capacité effective chute de ~20 % à 0 °C. La marge ×1,85 absorbe cette dégradation.</li>
+<li>L'ouverture de porte déclenche un wake-up et une transmission immédiate — consommation supplémentaire non comptée. Pour des enclos de tortues ouverts fréquemment en saison chaude, prévoir un debounce logiciel (délai 500 ms avant TX).</li>
+<li>Hypothèse : transmission LoRa SF7/BW125 à 14 dBm, durée ~100 ms. Si SF12 requis (portée dégradée), durée ~2 s → consommation ×20 en TX. Recalcul nécessaire si passerelle éloignée.</li>
+</ul>
+
+</body>
+</html>

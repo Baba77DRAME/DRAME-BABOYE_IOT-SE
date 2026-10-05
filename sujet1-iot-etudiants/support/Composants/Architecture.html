@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>A5 — Architecture du site</title>
+</head>
+<body>
+
+<h1>A5 — Architecture complète du site</h1>
+
+<hr>
+
+<h2>Schéma d'architecture</h2>
+
+<pre>
+┌─────────────────────────────────────────────────────────────────────┐
+│                     CENTRE DE RÉHABILITATION                        │
+│                                                                     │
+│  ┌── SALLE DES (12 m, cloisons placo) ────────────────────────┐    │
+│  │  N-DES-01..06 (enclos)  ──┐                                 │    │
+│  │  N-DES-salle            ──┼── WiFi 2,4 GHz ──────────────┐ │    │
+│  └──────────────────────────┘                                │ │    │
+│                                                              │ │    │
+│  ┌── SALLE TRO (18 m, humidité 85%) ──────────────────────┐  │ │    │
+│  │  N-TRO-01..06 (enclos)  ──┐                             │  │ │    │
+│  │  N-TRO-salle            ──┼── WiFi 2,4 GHz ────────────┤ │ │    │
+│  └──────────────────────────┘                              │ │ │    │
+│                                                            │ │ │    │
+│  ┌── SOI (9 m, température stable) ───────────────────┐   │ │ │    │
+│  │  N-SOI-01..03 (bacs)    ──┐                         │   │ │ │    │
+│  │  N-SOI-salle            ──┼── WiFi 2,4 GHz ─────────┤   │ │ │    │
+│  └──────────────────────────┘                         │   │ │ │    │
+│                                                       │   │ │ │    │
+│  Portes bâtiment (ENT, SAS, NOU) ──── WiFi 2,4 GHz ──┤   │ │ │    │
+│                                                       │   │ │ │    │
+│                                              AP WiFi ◄┘◄──┘ │ │    │
+│                                              (baie réseau)   │ │    │
+│                                                    │         │ │    │
+│                                               Switch 8P ◄────┘ │    │
+│                                                    │           │    │
+│                                              Serveur RPi 4     │    │
+│                                              Broker Mosquitto  │    │
+│                                              Front web         │    │
+│                                                    │           │    │
+│                                               GW LoRa ◄────────┘    │
+│                                          (RAK7268, baie)            │
+└───────────────────────────────────────┬──────────────────────────┘
+                                        │ LoRaWAN 868 MHz
+              ┌─────────────────────────┴─────────────────────┐
+              │                                               │
+   ┌── QUA (42 m, 2 murs béton 30 cm) ──┐   ┌── EXT (65 m) ──┐
+   │  N-QUA-01..04 (enclos)  ──┐         │   │  N-EXT-01..02  │
+   │  N-QUA-salle            ──┴── LoRa ─┘   │  (solaire/LiPo)│
+   └────────────────────────────────────┘   └────── LoRa ─────┘
+</pre>
+
+<hr>
+
+<h2>Composants de l'architecture</h2>
+
+<h3>Nodes</h3>
+<table border="1">
+<tr><th>Zone</th><th>Nodes</th><th>Connectivité</th><th>Alimentation</th></tr>
+<tr><td>DES</td><td>6 enclos + 1 salle</td><td>WiFi 2,4 GHz</td><td>Secteur USB 5 V</td></tr>
+<tr><td>TRO</td><td>6 enclos + 1 salle</td><td>WiFi 2,4 GHz</td><td>Secteur USB 5 V</td></tr>
+<tr><td>QUA</td><td>4 enclos + 1 salle</td><td>LoRaWAN 868 MHz</td><td>Secteur USB 5 V</td></tr>
+<tr><td>SOI</td><td>3 bacs + 1 salle</td><td>WiFi 2,4 GHz</td><td>Secteur USB 5 V</td></tr>
+<tr><td>EXT</td><td>2 enclos tortues</td><td>LoRaWAN 868 MHz</td><td>Solaire + LiPo</td></tr>
+<tr><td>Bâtiment</td><td>3 portes</td><td>WiFi 2,4 GHz</td><td>Secteur USB 5 V</td></tr>
+</table>
+
+<h3>Infrastructure réseau</h3>
+<table border="1">
+<tr><th>Équipement</th><th>Modèle</th><th>Rôle</th><th>Emplacement</th></tr>
+<tr><td>Point d'accès WiFi principal</td><td>TP-Link EAP115</td><td>Couvre DES, TRO, SOI, bâtiment</td><td>Baie réseau</td></tr>
+<tr><td>Point d'accès WiFi secondaire</td><td>TP-Link EAP115</td><td>Redondance / couverture étendue</td><td>Couloir central</td></tr>
+<tr><td>Passerelle LoRaWAN</td><td>RAK7268 8 canaux 868 MHz</td><td>QUA + EXT → Ethernet → broker</td><td>Baie réseau</td></tr>
+<tr><td>Switch Ethernet</td><td>TP-Link LS1008 (8 ports)</td><td>Interconnexion AP + GW + serveur</td><td>Baie réseau</td></tr>
+<tr><td>Serveur</td><td>Raspberry Pi 4 4 GB</td><td>Broker Mosquitto + front web</td><td>Baie réseau</td></tr>
+</table>
+
+<h3>Serveur — logiciels</h3>
+<table border="1">
+<tr><th>Logiciel</th><th>Rôle</th></tr>
+<tr><td>Mosquitto (MQTT broker)</td><td>Reçoit les messages des nodes WiFi et de la passerelle LoRa</td></tr>
+<tr><td>Serveur HTTP (Node.js ou nginx)</td><td>Sert le front web, expose WebSocket</td></tr>
+<tr><td>Pont MQTT ↔ WebSocket</td><td>Relaie les messages MQTT vers le front web (MQTT over WebSocket port 9001)</td></tr>
+</table>
+
+<hr>
+
+<h2>Justification des choix de connectivité</h2>
+
+<table border="1">
+<tr><th>Zone</th><th>Distance</th><th>Obstacle</th><th>Technologie choisie</th><th>Justification</th></tr>
+<tr>
+  <td>DES</td><td>12 m</td><td>Cloisons placo</td><td>WiFi 2,4 GHz</td>
+  <td>Atténuation placo ~3 dB, signal suffisant à 12 m. Latence &lt;100 ms → porte visible &lt;2 s.</td>
+</tr>
+<tr>
+  <td>TRO</td><td>18 m</td><td>Humidité 85 %</td><td>WiFi 2,4 GHz</td>
+  <td>L'humidité atténue légèrement le 2,4 GHz mais reste acceptable à 18 m. Boîtier node étanche requis.</td>
+</tr>
+<tr>
+  <td>QUA</td><td>42 m</td><td>2 murs béton 30 cm</td><td>LoRaWAN 868 MHz</td>
+  <td>Béton 30 cm : atténuation ~20 dB par mur pour WiFi 2,4 GHz = signal inexploitable. LoRa 868 MHz : pénétration béton nettement meilleure, portée 1–2 km en milieu obstrué.</td>
+</tr>
+<tr>
+  <td>SOI</td><td>9 m</td><td>Aucun</td><td>WiFi 2,4 GHz</td>
+  <td>Distance minimale, pas d'obstacle, WiFi trivial.</td>
+</tr>
+<tr>
+  <td>EXT</td><td>65 m</td><td>Extérieur, pas d'alim.</td><td>LoRaWAN 868 MHz</td>
+  <td>Pas d'alimentation secteur → LoRa seul viable (consommation TX ~12 mAs vs WiFi ~160 mAs). Portée 65 m triviale pour LoRa.</td>
+</tr>
+</table>
+
+<hr>
+
+<h2>Continuité de service — coupure réseau &lt; 10 min</h2>
+
+<p>Exigence : une coupure réseau de moins de 10 minutes ne doit faire perdre aucune alerte critique.</p>
+
+<ul>
+<li>Les nodes WiFi (ESP32) bufferisent les messages non publiés en RAM jusqu'au rétablissement de la connexion MQTT.</li>
+<li>Le broker Mosquitto conserve les messages QoS 1 en attente si un client est déconnecté (session persistante).</li>
+<li>Les alertes porte sont transmises dès le rétablissement de la connexion (QoS 1, retained = false).</li>
+<li>Hypothèse : la RAM ESP32 (520 KB) est suffisante pour stocker 10 min de messages (en moyenne 2 messages/min/node × 30 nodes = ~600 messages de ~100 octets = 60 KB).</li>
+</ul>
+
+<hr>
+
+<h2>Limites et risques</h2>
+
+<ul>
+<li>QUA utilise LoRaWAN alors que les autres salles utilisent WiFi : deux stacks de communication différents à maintenir. Si un répéteur WiFi peut couvrir QUA, simplification possible.</li>
+<li>La passerelle RAK7268 nécessite une configuration TTN (The Things Network) ou un serveur LoRaWAN local (ChirpStack). Hypothèse : ChirpStack déployé sur le même RPi 4.</li>
+<li>Le Raspberry Pi 4 est un SPOF (Single Point of Failure). En production critique, prévoir un second RPi ou une carte SD de secours avec image prête.</li>
+<li>WiFi 2,4 GHz en zone DES avec lampes à 45 000 lx : vérifier que les ballasts électroniques des lampes ne génèrent pas d'interférences RF dans la bande 2,4 GHz.</li>
+</ul>
+
+</body>
+</html>
