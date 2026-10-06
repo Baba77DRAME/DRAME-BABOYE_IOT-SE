@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>B1 — Topics MQTT</title>
+</head>
+<body>
+
+<h1>Topics MQTT</h1>
+
+<p>Version de l'arborescence : <strong>v1</strong>. Préfixe racine : <code>reptiles/v1</code>.</p>
+<p>Les identifiants de nodes sont ceux du simulateur : <code>N-DES-01</code>, <code>N-ROOM-DES</code>, <code>N-DOOR-MAIN</code>, etc.</p>
+<p>Zone <code>BAT</code> = bâtiment, utilisée pour les portes sans zone propre.</p>
+
+<hr>
+
+<h2>Structure générale</h2>
+
+<pre>
+reptiles/v1/
+  nodes/{zone}/{node-id}/telemetry      ← mesures périodiques (lectures capteurs)
+  nodes/{zone}/{node-id}/events         ← événements (porte ouverte/fermée, boot)
+  nodes/{zone}/{node-id}/heartbeat      ← signal de vie périodique
+  nodes/{zone}/{node-id}/availability   ← état online/offline (Last Will + retained)
+  nodes/{zone}/{node-id}/cmd            ← commandes vers le node
+  nodes/{zone}/{node-id}/ack            ← acquittements depuis le node
+  alerts/{zone}/{node-id}               ← alertes émises par le serveur ou le node
+</pre>
+
+<hr>
+
+<h2>Mapping simulateur → topic</h2>
+
+<table border="1">
+<tr>
+  <th>Node simulateur</th><th>Zone</th><th>Type node</th>
+  <th>Topic telemetry / events</th>
+</tr>
+<tr><td>N-DES-01 … N-DES-06</td><td>DES</td><td>enclos</td><td>reptiles/v1/nodes/DES/N-DES-01/telemetry</td></tr>
+<tr><td>N-TRO-01 … N-TRO-06</td><td>TRO</td><td>enclos</td><td>reptiles/v1/nodes/TRO/N-TRO-01/telemetry</td></tr>
+<tr><td>N-QUA-01 … N-QUA-04</td><td>QUA</td><td>enclos</td><td>reptiles/v1/nodes/QUA/N-QUA-01/telemetry</td></tr>
+<tr><td>N-SOI-01 … N-SOI-03</td><td>SOI</td><td>enclos</td><td>reptiles/v1/nodes/SOI/N-SOI-01/telemetry</td></tr>
+<tr><td>N-EXT-01, N-EXT-02</td><td>EXT</td><td>enclos extérieur</td><td>reptiles/v1/nodes/EXT/N-EXT-01/telemetry</td></tr>
+<tr><td>N-ROOM-DES</td><td>DES</td><td>salle</td><td>reptiles/v1/nodes/DES/N-ROOM-DES/telemetry</td></tr>
+<tr><td>N-ROOM-TRO</td><td>TRO</td><td>salle</td><td>reptiles/v1/nodes/TRO/N-ROOM-TRO/telemetry</td></tr>
+<tr><td>N-ROOM-QUA</td><td>QUA</td><td>salle</td><td>reptiles/v1/nodes/QUA/N-ROOM-QUA/telemetry</td></tr>
+<tr><td>N-ROOM-SOI</td><td>SOI</td><td>salle</td><td>reptiles/v1/nodes/SOI/N-ROOM-SOI/telemetry</td></tr>
+<tr><td>N-DOOR-MAIN</td><td>BAT</td><td>porte bâtiment</td><td>reptiles/v1/nodes/BAT/N-DOOR-MAIN/events</td></tr>
+<tr><td>N-DOOR-SAS</td><td>BAT</td><td>porte bâtiment</td><td>reptiles/v1/nodes/BAT/N-DOOR-SAS/events</td></tr>
+<tr><td>N-DOOR-FEED</td><td>BAT</td><td>porte bâtiment</td><td>reptiles/v1/nodes/BAT/N-DOOR-FEED/events</td></tr>
+</table>
+
+<hr>
+
+<h2>Topics par type de message</h2>
+
+<table border="1">
+<tr><th>Type de message</th><th>Topic</th><th>Émetteur</th><th>Destinataire</th></tr>
+<tr>
+  <td>Télémétrie (reading)</td>
+  <td>reptiles/v1/nodes/{zone}/{node-id}/telemetry</td>
+  <td>Simulateur / node réel</td><td>Front web</td>
+</tr>
+<tr>
+  <td>Événement porte (door)</td>
+  <td>reptiles/v1/nodes/{zone}/{node-id}/events</td>
+  <td>Simulateur / node réel</td><td>Front web</td>
+</tr>
+<tr>
+  <td>Boot (boot)</td>
+  <td>reptiles/v1/nodes/{zone}/{node-id}/events</td>
+  <td>Simulateur / node réel</td><td>Front web, serveur</td>
+</tr>
+<tr>
+  <td>Heartbeat</td>
+  <td>reptiles/v1/nodes/{zone}/{node-id}/heartbeat</td>
+  <td>Simulateur / node réel</td><td>Serveur (watchdog)</td>
+</tr>
+<tr>
+  <td>Disponibilité (LWT)</td>
+  <td>reptiles/v1/nodes/{zone}/{node-id}/availability</td>
+  <td>Broker (LWT) / node</td><td>Front web, serveur</td>
+</tr>
+<tr>
+  <td>Commande</td>
+  <td>reptiles/v1/nodes/{zone}/{node-id}/cmd</td>
+  <td>Front web / serveur</td><td>Simulateur / node réel</td>
+</tr>
+<tr>
+  <td>Acquittement (ack)</td>
+  <td>reptiles/v1/nodes/{zone}/{node-id}/ack</td>
+  <td>Simulateur / node réel</td><td>Front web, serveur</td>
+</tr>
+<tr>
+  <td>Alerte</td>
+  <td>reptiles/v1/alerts/{zone}/{node-id}</td>
+  <td>Serveur (détection)</td><td>Front web</td>
+</tr>
+</table>
+
+<hr>
+
+<h2>Exemples de souscriptions wildcard</h2>
+
+<table border="1">
+<tr><th>Objectif</th><th>Topic wildcard</th></tr>
+<tr><td>Toute la télémétrie du site</td><td>reptiles/v1/nodes/+/+/telemetry</td></tr>
+<tr><td>Tous les événements DES</td><td>reptiles/v1/nodes/DES/+/events</td></tr>
+<tr><td>Tout ce qui concerne N-DES-01</td><td>reptiles/v1/nodes/DES/N-DES-01/#</td></tr>
+<tr><td>Toutes les disponibilités</td><td>reptiles/v1/nodes/+/+/availability</td></tr>
+<tr><td>Toutes les alertes</td><td>reptiles/v1/alerts/#</td></tr>
+<tr><td>Toutes les commandes vers QUA</td><td>reptiles/v1/nodes/QUA/+/cmd</td></tr>
+</table>
+
+<hr>
+
+<h2>Règle de versionnement</h2>
+
+<ul>
+<li>Le préfixe <code>v1</code> permet une migration sans interruption : un nouveau front peut s'abonner à <code>v2</code> pendant que l'ancien continue sur <code>v1</code>.</li>
+<li>Tout changement de format de message incompatible incrémente la version majeure du topic.</li>
+<li>Un changement additionnel (nouveau champ optionnel) ne change pas la version.</li>
+</ul>
+
+</body>
+</html>

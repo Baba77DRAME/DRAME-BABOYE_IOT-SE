@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>B8 — Sécurité</title>
+</head>
+<body>
+
+<h1>Sécurité — Authentification Mosquitto, ACL, Rôles</h1>
+
+<hr>
+
+<h2>Utilisateurs Mosquitto</h2>
+
+<table border="1">
+<tr><th>Utilisateur</th><th>Rôle</th><th>Mot de passe</th><th>Description</th></tr>
+<tr><td>simulator</td><td>Simulateur</td><td>Hashé (bcrypt)</td><td>L'adaptateur MQTT du simulateur publie tous les messages de tous les nodes simulés</td></tr>
+<tr><td>frontend</td><td>Front web</td><td>Hashé (bcrypt)</td><td>Tableau de bord — lecture seule sur les données, écriture sur les commandes</td></tr>
+<tr><td>server</td><td>Serveur (watchdog, alerting)</td><td>Hashé (bcrypt)</td><td>Publie les alertes, souscrit aux heartbeats pour le watchdog</td></tr>
+<tr><td>admin</td><td>Administrateur</td><td>Hashé (bcrypt)</td><td>Accès complet pour maintenance, diagnostic, configuration</td></tr>
+<tr><td>node-{node-id}</td><td>Node réel (hardware)</td><td>Hashé (bcrypt)</td><td>Un compte par node physique déployé. Publie uniquement ses propres topics.</td></tr>
+</table>
+
+<p>Les mots de passe sont générés avec <code>mosquitto_passwd</code> et stockés dans <code>/etc/mosquitto/passwd</code>.</p>
+
+<hr>
+
+<h2>ACL — Access Control List</h2>
+
+<h3>Rôle : simulator</h3>
+<table border="1">
+<tr><th>Opération</th><th>Topic pattern</th><th>Justification</th></tr>
+<tr><td>write</td><td>reptiles/v1/nodes/#</td><td>Publie telemetry, events, heartbeat, availability, ack pour tous les nodes simulés</td></tr>
+<tr><td>read</td><td>reptiles/v1/nodes/+/+/cmd</td><td>Reçoit les commandes destinées aux nodes simulés</td></tr>
+<tr><td>write</td><td>reptiles/v1/site/availability</td><td>LWT de niveau site</td></tr>
+</table>
+
+<h3>Rôle : frontend</h3>
+<table border="1">
+<tr><th>Opération</th><th>Topic pattern</th><th>Justification</th></tr>
+<tr><td>read</td><td>reptiles/v1/nodes/#</td><td>Souscrit à toute la télémétrie, événements, heartbeat, availability, ack</td></tr>
+<tr><td>read</td><td>reptiles/v1/alerts/#</td><td>Affiche les alertes actives</td></tr>
+<tr><td>read</td><td>reptiles/v1/site/#</td><td>État global du simulateur</td></tr>
+<tr><td>write</td><td>reptiles/v1/nodes/+/+/cmd</td><td>Envoie des commandes. Limité au topic cmd uniquement.</td></tr>
+</table>
+
+<h3>Rôle : server</h3>
+<table border="1">
+<tr><th>Opération</th><th>Topic pattern</th><th>Justification</th></tr>
+<tr><td>read</td><td>reptiles/v1/nodes/#</td><td>Analyse des mesures pour détection d'alertes et watchdog</td></tr>
+<tr><td>write</td><td>reptiles/v1/alerts/#</td><td>Publie les alertes générées</td></tr>
+<tr><td>write</td><td>reptiles/v1/nodes/+/+/cmd</td><td>Commandes automatiques (safety_cut en cas d'urgence)</td></tr>
+</table>
+
+<h3>Rôle : admin</h3>
+<table border="1">
+<tr><th>Opération</th><th>Topic pattern</th><th>Justification</th></tr>
+<tr><td>readwrite</td><td>#</td><td>Accès total pour maintenance</td></tr>
+</table>
+
+<h3>Rôle : node-{node-id} (hardware réel)</h3>
+<table border="1">
+<tr><th>Opération</th><th>Topic pattern</th><th>Justification</th></tr>
+<tr><td>write</td><td>reptiles/v1/nodes/{zone}/{node-id}/telemetry</td><td>Publie uniquement sa propre télémétrie</td></tr>
+<tr><td>write</td><td>reptiles/v1/nodes/{zone}/{node-id}/events</td><td>Publie uniquement ses propres événements</td></tr>
+<tr><td>write</td><td>reptiles/v1/nodes/{zone}/{node-id}/heartbeat</td><td>Publie uniquement son heartbeat</td></tr>
+<tr><td>write</td><td>reptiles/v1/nodes/{zone}/{node-id}/availability</td><td>LWT et publication online</td></tr>
+<tr><td>write</td><td>reptiles/v1/nodes/{zone}/{node-id}/ack</td><td>Publie uniquement ses ACK</td></tr>
+<tr><td>read</td><td>reptiles/v1/nodes/{zone}/{node-id}/cmd</td><td>Reçoit uniquement ses propres commandes</td></tr>
+</table>
+
+<p><strong>Un node ne peut pas lire les données des autres nodes ni publier sur leurs topics.</strong></p>
+
+<hr>
+
+<h2>Fichier de configuration Mosquitto</h2>
+
+<p>Fichier : <code>/etc/mosquitto/mosquitto.conf</code></p>
+
+<pre>
+listener 1883
+listener 9001
+protocol websockets
+
+allow_anonymous false
+password_file /etc/mosquitto/passwd
+acl_file /etc/mosquitto/acl
+
+persistence true
+persistence_location /var/lib/mosquitto/
+
+log_dest file /var/log/mosquitto/mosquitto.log
+log_type error
+log_type warning
+log_type notice
+log_type information
+
+max_keepalive 120
+</pre>
+
+<h2>Fichier ACL Mosquitto</h2>
+
+<p>Fichier : <code>/etc/mosquitto/acl</code></p>
+
+<pre>
+# Administrateur
+user admin
+topic readwrite #
+
+# Simulateur (adaptateur MQTT)
+user simulator
+topic write reptiles/v1/nodes/#
+topic read reptiles/v1/nodes/+/+/cmd
+topic write reptiles/v1/site/availability
+
+# Serveur (watchdog, alerting)
+user server
+topic read reptiles/v1/nodes/#
+topic write reptiles/v1/alerts/#
+topic write reptiles/v1/nodes/+/+/cmd
+
+# Front web
+user frontend
+topic read reptiles/v1/nodes/#
+topic read reptiles/v1/alerts/#
+topic read reptiles/v1/site/#
+topic write reptiles/v1/nodes/+/+/cmd
+
+# Nodes hardware réels (pattern %u = username = node-N-DES-01, etc.)
+# Le {zone}/{node-id} est extrait du username dans le code du node.
+# Exemple pour node-N-DES-01 connecté avec user node-N-DES-01 :
+user node-N-DES-01
+topic write reptiles/v1/nodes/DES/N-DES-01/telemetry
+topic write reptiles/v1/nodes/DES/N-DES-01/events
+topic write reptiles/v1/nodes/DES/N-DES-01/heartbeat
+topic write reptiles/v1/nodes/DES/N-DES-01/availability
+topic write reptiles/v1/nodes/DES/N-DES-01/ack
+topic read  reptiles/v1/nodes/DES/N-DES-01/cmd
+</pre>
+
+<p><em>Hypothèse :</em> en production avec de nombreux nodes hardware réels, une solution de provisioning automatique (ex: HiveMQ avec RBAC dynamique, ou un plugin Mosquitto) est préférable à la gestion manuelle de chaque entrée ACL. Dans le cadre de ce projet (simulateur), les 4 comptes principaux suffisent.</p>
+
+<hr>
+
+<h2>Transport sécurisé (recommandation)</h2>
+
+<p>Dans l'architecture actuelle (réseau local), TLS n'est pas requis. Si le broker est exposé sur internet :</p>
+<ul>
+<li>Activer TLS sur le port 8883 (MQTT) et 8084 (MQTT over WebSocket).</li>
+<li>Certificat auto-signé ou Let's Encrypt.</li>
+<li>Configurer <code>cafile</code>, <code>certfile</code>, <code>keyfile</code> dans mosquitto.conf.</li>
+</ul>
+
+</body>
+</html>
