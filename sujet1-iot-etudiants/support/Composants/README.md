@@ -120,3 +120,185 @@ Utilisé pour les zones QUA (béton 30 cm × 2) et EXT (65 m, sans alimentation 
 
 **Gateway LoRaWAN** : RAK7268 (Ethernet, portée 2 km en zone urbaine)  
 **Serveur** : Raspberry Pi 4 (Mosquitto MQTT + front web)
+
+---
+
+# Partie 2 — Protocoles MQTT
+
+Définition complète du protocole de communication entre les nodes, le broker Mosquitto et les clients (simulateur, serveur d'alertes, front web).
+
+---
+
+## B1 — Arborescence des topics (`Topics.html`)
+
+Racine versionnée : `reptiles/v1/`
+
+```
+reptiles/v1/
+├── site/
+│   └── availability                  ← statut global du simulateur (LWT)
+├── nodes/
+│   └── {zone}/
+│       └── {node-id}/
+│           ├── telemetry             ← mesures périodiques (lecture capteurs)
+│           ├── events                ← événements (porte, boot)
+│           ├── heartbeat             ← battement de cœur du node
+│           ├── availability          ← en ligne / hors ligne (retain)
+│           ├── cmd                   ← commandes envoyées au node
+│           └── ack                   ← accusé de réception des commandes
+└── alerts/
+    └── {zone}/
+        └── {node-id}                 ← alertes levées par le serveur (retain)
+```
+
+| Zone | Nodes |
+|---|---|
+| DES | N-ROOM-DES, N-DES-01 à N-DES-06 |
+| TRO | N-ROOM-TRO, N-TRO-01 à N-TRO-06 |
+| QUA | N-ROOM-QUA, N-QUA-01 à N-QUA-04 |
+| SOI | N-ROOM-SOI, N-SOI-01 à N-SOI-03 |
+| EXT | N-EXT-01, N-EXT-02 |
+| BAT | N-DOOR-MAIN, N-DOOR-SAS, N-DOOR-FEED |
+
+---
+
+## B2 — Format des messages (`Messages.html`)
+
+Enveloppe JSON versionnée commune à tous les messages :
+
+```json
+{
+  "v": 1,
+  "msgId": "a1b2c3d4e5f6a7b8",
+  "node": "N-DES-01",
+  "zone": "DES",
+  "enclosure": "DES-01",
+  "ts": 1700000000000,
+  "serverTs": 1700000000120,
+  "seq": 42,
+  "type": "reading",
+  "sensor": "temp_hot",
+  "value": 35.5,
+  "unit": "C"
+}
+```
+
+| Champ | Description |
+|---|---|
+| `v` | Version du protocole (actuellement 1) |
+| `msgId` | Identifiant unique du message (8 octets hex) |
+| `node` | Identifiant du node émetteur |
+| `zone` / `enclosure` | Zone et terrarium (null pour les nodes salle/porte) |
+| `ts` | Horodatage device (ms epoch) |
+| `serverTs` | Horodatage serveur à la réception (ms epoch) |
+| `seq` | Numéro de séquence monotone par node |
+| `type` | `reading`, `door`, `heartbeat`, `boot`, `ack`, `alert` |
+
+Types de messages principaux :
+
+| type | topic | champs spécifiques |
+|---|---|---|
+| `reading` | telemetry | `sensor` (temp_hot/temp_cold/light/temp_ambient), `value`, `unit` |
+| `door` | events | `state` (open/closed) |
+| `heartbeat` | heartbeat | `uptimeS`, `rssi`, `fw`, `battery` (si batterie) |
+| `boot` | events | `reason` (power_on, watchdog, ota…) |
+| `ack` | ack | `cmdId`, `action`, `ok`, `detail` |
+| `alert` | alerts/{zone}/{node} | `level`, `code`, `message` |
+
+---
+
+## B3 — QoS et retain (`QoS-Retain.html`)
+
+| Topic | QoS | Retain | Justification |
+|---|---|---|---|
+| telemetry | 0 | false | Flux continu, perte acceptable |
+| heartbeat | 0 | false | Flux continu, perte acceptable |
+| events (door, boot) | 1 | false | Événement critique, livraison garantie |
+| availability | 1 | **true** | Dernier état connu visible à la connexion |
+| cmd | 1 | false | Commande unique, pas de rejeu |
+| ack | 1 | false | Réponse unique |
+| alerts | 1 | **true** | Alerte persistante jusqu'à résolution |
+
+---
+
+## B4 — Last Will Testament (`LastWill.html`)
+
+Le simulateur publie un LWT **site-level** à la connexion :
+
+```
+topic   : reptiles/v1/site/availability
+payload : {"v":1,"status":"offline","source":"simulator","ts":0}
+QoS     : 1
+retain  : true
+```
+
+À la connexion réussie, il remplace immédiatement par `status: "online"` et publie un message `availability: online` pour chacun des 28 nodes.  
+Si la connexion TCP est coupée brutalement, Mosquitto diffuse automatiquement le LWT `offline`.
+
+---
+
+## B5 — ClientId (`ClientId.html`)
+
+Format : `{role}-{fonction}-{6 octets hex aléatoires}`
+
+| Rôle | Exemple |
+|---|---|
+| Simulateur | `simulator-main-a1b2c3` |
+| Serveur d'alertes | `server-alerting-d4e5f6` |
+| Front web | `frontend-a7b8c9` |
+
+La partie aléatoire évite les conflits de clientId si plusieurs instances se connectent simultanément. `cleanSession: true` sur tous les clients.
+
+---
+
+## B6 — Commandes et ACK (`Commandes.html`)
+
+Commande envoyée par le front sur `reptiles/v1/nodes/{zone}/{nodeId}/cmd` :
+
+```json
+{
+  "v": 1,
+  "cmdId": "cmd-1a2b3c4d-a1b2",
+  "target": "N-DES-01",
+  "action": "lamp",
+  "value": "off",
+  "expiresAt": 1700000030000
+}
+```
+
+| action | value | effet |
+|---|---|---|
+| `lamp` | on / off / auto | Mode lampe chauffante |
+| `light` | on / off / auto | Mode éclairage UV |
+| `setpoint` | 20 – 50 (°C) | Consigne point chaud |
+| `safety_cut` | on / off | Coupe d'urgence alimentation terrarium |
+| `reboot` | — | Redémarrage du node |
+| `identify` | — | Clignotement LED 10 s |
+
+Le node répond sur `.../ack` avec `ok: true/false` et un champ `detail` (`ok`, `bad_value`, `not_supported`…).  
+Le champ `expiresAt` permet au node d'ignorer les commandes trop anciennes (TTL 30 s recommandé).
+
+---
+
+## B7 — Horodatage (`Horodatage.html`)
+
+- `ts` : horodatage **device** en ms epoch. Peut être décalé si le node n'a pas encore synchronisé NTP (boot récent → valeur depuis 1970 = uptime depuis le boot).
+- `serverTs` : horodatage **serveur** ajouté par le simulateur/adaptateur MQTT à la publication.
+- Un message est marqué `late: true` si `serverTs - ts > 120 000 ms` (retard LoRaWAN ou file d'attente).
+- Les nodes synchronisent leur horloge via NTP ~2 min après le boot.
+
+---
+
+## B8 — Sécurité (`Securite.html`)
+
+Authentification par mot de passe sur Mosquitto 2.x (PBKDF2-SHA512, format `$7$101$salt$hash`).  
+ACL par utilisateur :
+
+| Utilisateur | Droits |
+|---|---|
+| `simulator` | Write `nodes/#`, Read `nodes/+/+/cmd`, Write `site/availability` |
+| `server` | Read `nodes/#`, Write `alerts/#`, Write `nodes/+/+/cmd` |
+| `frontend` | Read `nodes/#`, Read `alerts/#`, Read `site/#`, Write `nodes/+/+/cmd` |
+| `admin` | Read/Write `#` (accès total) |
+
+Aucun accès anonyme (`allow_anonymous false`). Les mots de passe sont stockés dans `mosquitto/passwd`.
