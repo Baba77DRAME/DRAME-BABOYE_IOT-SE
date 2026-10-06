@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><title>Partie C — Procédure de lancement et tests</title></head>
+<body>
+<h1>Procédure de lancement et tests</h1>
+
+<h2>Prérequis</h2>
+<ul>
+  <li>Node.js &gt;= 20</li>
+  <li>Docker Desktop démarré</li>
+  <li>npm install exécuté dans le dossier <code>support/</code></li>
+</ul>
+
+<h2>Lancement complet</h2>
+<p>Ouvrir 3 terminaux dans <code>support/</code> :</p>
+<table border="1" cellpadding="6">
+  <thead>
+    <tr><th>Terminal</th><th>Commande</th><th>Rôle</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td><code>npm run broker</code></td>
+      <td>Démarre Mosquitto (ports 1883 et 9001)</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><code>npm run start:mqtt</code></td>
+      <td>Démarre le simulateur avec l'adaptateur MQTT</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><code>npm run server</code></td>
+      <td>Démarre le serveur d'alertes</td>
+    </tr>
+  </tbody>
+</table>
+<p>Optionnel — ouvrir le front web :</p>
+<pre>npm run front</pre>
+
+<h2>Vérification de la connexion</h2>
+<p>Le terminal du simulateur doit afficher :</p>
+<pre>[mqtt] connecté mqtt://localhost:1883 (simulator-main-xxxxxx)</pre>
+<p>Le terminal du serveur doit afficher :</p>
+<pre>[server] connecté mqtt://localhost:1883 (server-alerting-xxxxxx)</pre>
+
+<h2>Test 1 — Réception des données</h2>
+<p>Vérifier avec mosquitto_sub (si disponible) ou depuis le front web :</p>
+<pre>mosquitto_sub -h localhost -p 1883 -u admin -P admin -t "reptiles/v1/nodes/#" -v</pre>
+<p>Attendu : messages JSON toutes les ~0,5 s (vitesse ×60) sur les topics telemetry et heartbeat.</p>
+
+<h2>Test 2 — Envoi d'une commande</h2>
+<p>Depuis le front web (zone DES, node N-DES-01) → bouton <strong>Lampe OFF</strong>.<br>
+Ou en ligne de commande :</p>
+<pre>mosquitto_pub -h localhost -p 1883 -u admin -P admin \
+  -t "reptiles/v1/nodes/DES/N-DES-01/cmd" \
+  -m '{"v":1,"cmdId":"test-001","target":"N-DES-01","action":"lamp","value":"off","expiresAt":9999999999999}'</pre>
+<p>Attendu : un message ACK sur <code>reptiles/v1/nodes/DES/N-DES-01/ack</code> avec <code>ok: true</code> et <code>cmdId: "test-001"</code>.</p>
+
+<h2>Test 3 — Coupure réseau (tampon)</h2>
+<ol>
+  <li>Arrêter Mosquitto : <code>docker compose stop mosquitto</code></li>
+  <li>Observer le simulateur : <code>[mqtt] connexion perdue — messages mis en tampon</code></li>
+  <li>Attendre 30 secondes (plusieurs cycles de mesure)</li>
+  <li>Relancer Mosquitto : <code>docker compose start mosquitto</code></li>
+  <li>Observer la vidange : <code>[mqtt] vidange tampon : N message(s) en attente</code></li>
+  <li>Vérifier que les événements porte bufférisés arrivent bien dans le serveur d'alertes</li>
+</ol>
+
+<h2>Test 4 — Backoff exponentiel</h2>
+<ol>
+  <li>Arrêter Mosquitto</li>
+  <li>Observer les tentatives de reconnexion dans la console du simulateur :</li>
+</ol>
+<pre>
+[mqtt] connexion perdue — messages mis en tampon
+[mqtt] reconnexion dans 3.0 s (backoff x2, max 30 s)...
+[mqtt] tentative de reconnexion...
+[mqtt] reconnexion dans 6.0 s (backoff x2, max 30 s)...
+[mqtt] tentative de reconnexion...
+[mqtt] reconnexion dans 12.0 s (backoff x2, max 30 s)...
+...
+[mqtt] reconnexion dans 30.0 s (backoff x2, max 30 s)...  ← plateau
+</pre>
+
+<h2>Test 5 — Variables d'environnement</h2>
+<pre>
+MQTT_BUFFER_MAX=10 MQTT_RECONNECT_MIN_DELAY=1000 \
+  node src/index.js --output mqtt
+</pre>
+<p>Avec un tampon de 10 messages, un avertissement doit apparaître rapidement si le broker est arrêté.</p>
+
+<h2>Test 6 — Alerte automatique</h2>
+<p>Le scénario <em>incidents</em> (défaut) provoque des pannes aléatoires. Attendre ~2–5 minutes (simulées) pour voir :</p>
+<ul>
+  <li>Une alerte <code>probe_disconnected</code> (sonde DS18B20 retourne −127 °C)</li>
+  <li>Une alerte <code>door_open_timeout</code> (porte restée ouverte &gt; 15 min simulées)</li>
+  <li>Une alerte <code>battery_low</code> (nodes EXT ou DOOR)</li>
+</ul>
+<p>Les alertes apparaissent dans le terminal du serveur et dans le front web.</p>
+
+<h2>Vérification simulator.js / scenarios.js inchangés</h2>
+<pre>git diff HEAD -- src/simulator.js src/scenarios.js</pre>
+<p>Attendu : aucune sortie (aucune modification).</p>
+</body>
+</html>

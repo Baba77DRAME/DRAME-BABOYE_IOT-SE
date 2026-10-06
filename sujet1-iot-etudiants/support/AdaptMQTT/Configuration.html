@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><title>Partie C — Configuration</title></head>
+<body>
+<h1>Configuration — Variables d'environnement</h1>
+<p>Toutes les variables sont lues au démarrage de l'adaptateur. Aucun credential n'est codé en dur dans le source.</p>
+
+<h2>Référence complète</h2>
+<table border="1" cellpadding="6">
+  <thead>
+    <tr><th>Variable</th><th>Défaut</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>MQTT_BROKER</td>
+      <td>mqtt://localhost:1883</td>
+      <td>URL complète du broker. Préfixe <code>mqtt://</code> pour TCP, <code>mqtts://</code> pour TLS, <code>ws://</code> pour WebSocket.</td>
+    </tr>
+    <tr>
+      <td>MQTT_USER</td>
+      <td>simulator</td>
+      <td>Nom d'utilisateur MQTT (doit correspondre au fichier passwd Mosquitto).</td>
+    </tr>
+    <tr>
+      <td>MQTT_PASS</td>
+      <td>simulator</td>
+      <td>Mot de passe MQTT. Ne jamais committer la valeur réelle dans le dépôt.</td>
+    </tr>
+    <tr>
+      <td>MQTT_CLIENT_ID</td>
+      <td>simulator-main-&lt;hex&gt;</td>
+      <td>Identifiant client. Généré automatiquement si vide. Doit être fixe pour une session persistante (<code>MQTT_CLEAN_SESSION=false</code>).</td>
+    </tr>
+    <tr>
+      <td>MQTT_ROOT_TOPIC</td>
+      <td>reptiles/v1</td>
+      <td>Racine de l'arborescence des topics. Modifier pour changer de version de protocole.</td>
+    </tr>
+    <tr>
+      <td>MQTT_CLEAN_SESSION</td>
+      <td>true</td>
+      <td><code>true</code> = session propre (recommandé avec buffering applicatif). <code>false</code> = session persistante côté broker (nécessite un clientId fixe).</td>
+    </tr>
+    <tr>
+      <td>MQTT_KEEPALIVE</td>
+      <td>60</td>
+      <td>Intervalle keepalive en secondes. Le broker déconnecte le client si aucun message n'est reçu dans 1,5 × keepalive.</td>
+    </tr>
+    <tr>
+      <td>MQTT_RECONNECT_MIN_DELAY</td>
+      <td>3000</td>
+      <td>Délai initial de reconnexion en ms (premier backoff).</td>
+    </tr>
+    <tr>
+      <td>MQTT_RECONNECT_MAX_DELAY</td>
+      <td>30000</td>
+      <td>Délai maximum de reconnexion en ms. Le délai double à chaque tentative jusqu'à cette valeur.</td>
+    </tr>
+    <tr>
+      <td>MQTT_BUFFER_MAX</td>
+      <td>500</td>
+      <td>
+        Nombre total de messages conservés hors ligne.<br>
+        60 % = haute priorité (QoS 1 : door, boot, ack, availability).<br>
+        40 % = basse priorité (QoS 0 : telemetry, heartbeat).<br>
+        Augmenter si les coupures peuvent durer plusieurs heures.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Fichier .env.example</h2>
+<pre>
+# ── Broker ───────────────────────────────────────────────────────
+MQTT_BROKER=mqtt://localhost:1883
+MQTT_USER=simulator
+MQTT_PASS=simulator
+
+# ── Identité du client ───────────────────────────────────────────
+# Laisser vide pour générer automatiquement : simulator-main-&lt;hex&gt;
+MQTT_CLIENT_ID=
+
+# ── Topics ───────────────────────────────────────────────────────
+MQTT_ROOT_TOPIC=reptiles/v1
+
+# ── Session ──────────────────────────────────────────────────────
+MQTT_CLEAN_SESSION=true
+MQTT_KEEPALIVE=60
+
+# ── Reconnexion (backoff exponentiel) ────────────────────────────
+MQTT_RECONNECT_MIN_DELAY=3000
+MQTT_RECONNECT_MAX_DELAY=30000
+
+# ── Tampon hors-ligne ────────────────────────────────────────────
+MQTT_BUFFER_MAX=500
+</pre>
+
+<h2>Utilisation</h2>
+<p>Copier <code>.env.example</code> en <code>.env</code> et renseigner les valeurs réelles :</p>
+<pre>
+cp .env.example .env
+# éditer .env avec les vrais credentials
+</pre>
+<p>Charger le fichier <code>.env</code> avant de lancer le simulateur :</p>
+<pre>
+# Avec dotenv-cli (npm i -g dotenv-cli)
+dotenv -- node src/index.js --output mqtt
+
+# Ou manuellement dans le shell
+export $(grep -v '^#' .env | xargs)
+node src/index.js --output mqtt
+</pre>
+<p>Le fichier <code>.env</code> est dans <code>.gitignore</code> — seul <code>.env.example</code> est versionné.</p>
+
+<h2>Priorité de résolution</h2>
+<ol>
+  <li>Variable d'environnement (process.env)</li>
+  <li>Valeur par défaut dans le code (opérateur <code>??</code>)</li>
+</ol>
+<p>Il n'y a pas de fichier de configuration JSON/YAML — uniquement des variables d'environnement pour respecter les 12-factor apps.</p>
+</body>
+</html>

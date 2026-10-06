@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><title>Partie C — Stratégie tampon hors-ligne</title></head>
+<body>
+<h1>Stratégie tampon hors-ligne</h1>
+
+<h2>Problème</h2>
+<p>Pendant une coupure réseau (broker inaccessible, perte WiFi, redémarrage Mosquitto), le simulateur continue de générer des messages. Sans tampon, tous ces messages sont perdus. Or :</p>
+<ul>
+  <li>Un événement <em>porte ouverte</em> non transmis peut empêcher la détection d'une surchauffe.</li>
+  <li>Un événement <em>boot</em> non transmis laisse le serveur d'alertes croire que le node est hors ligne.</li>
+  <li>Un <em>ack</em> non transmis laisse le front sans retour sur une commande.</li>
+</ul>
+
+<h2>Stratégie choisie : tampon applicatif prioritaire en mémoire</h2>
+<p>Deux files FIFO indépendantes avec capacités différentes :</p>
+<table border="1" cellpadding="6">
+  <thead>
+    <tr><th>File</th><th>Contenu</th><th>Capacité (défaut)</th><th>Débordement</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Haute priorité</td>
+      <td>QoS 1 : door, boot, ack, availability</td>
+      <td>300 messages (60 %)</td>
+      <td>Supprime le plus ancien + avertissement stderr</td>
+    </tr>
+    <tr>
+      <td>Basse priorité</td>
+      <td>QoS 0 : telemetry, heartbeat</td>
+      <td>200 messages (40 %)</td>
+      <td>Supprime le plus ancien (silencieux)</td>
+    </tr>
+  </tbody>
+</table>
+<p>La capacité totale est configurable via <code>MQTT_BUFFER_MAX</code> (défaut 500).</p>
+
+<h2>Durée de buffering en pratique</h2>
+<p>Avec le simulateur en scénario <em>incidents</em>, vitesse ×60 :</p>
+<table border="1" cellpadding="6">
+  <thead>
+    <tr><th>Type de message</th><th>Fréquence simulée</th><th>Fréquence réelle</th><th>Volume / heure réelle</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Telemetry (28 nodes)</td><td>30 s/node</td><td>0,5 s/node</td><td>~2 016 msg/h</td></tr>
+    <tr><td>Heartbeat (28 nodes)</td><td>5–30 min/node</td><td>5–30 s/node</td><td>~112–672 msg/h</td></tr>
+    <tr><td>Door events</td><td>variable</td><td>faible</td><td>&lt; 50 msg/h</td></tr>
+  </tbody>
+</table>
+<p>Avec le tampon par défaut (500 messages), la basse priorité couvre environ <strong>6 minutes de coupure</strong> sans perte de telemetry. La haute priorité couvre plusieurs heures d'événements critiques.</p>
+
+<h2>Reconnexion — backoff exponentiel</h2>
+<pre>
+Tentative 1 : délai = MQTT_RECONNECT_MIN_DELAY (défaut 3 s)
+Tentative 2 : délai = 6 s
+Tentative 3 : délai = 12 s
+Tentative 4 : délai = 24 s
+Tentative N : délai = min(délai × 2, MQTT_RECONNECT_MAX_DELAY)
+              (défaut max = 30 s)
+
+À chaque connexion réussie : délai remis à MQTT_RECONNECT_MIN_DELAY.
+</pre>
+<p>Le backoff évite de surcharger un broker en cours de redémarrage avec des tentatives répétées.</p>
+
+<h2>Vidange du tampon après reconnexion</h2>
+<ol>
+  <li>Reconnexion établie → événement <code>connect</code></li>
+  <li>Publication du LWT <em>online</em> et des 28 messages <em>availability online</em> (retain)</li>
+  <li>Abonnement aux commandes rétabli</li>
+  <li><strong>drain()</strong> — les messages sont republiés en séquence, haute priorité d'abord</li>
+  <li>Publication sérialisée via callback pour ne pas saturer le broker</li>
+</ol>
+
+<h2>Gestion des doublons</h2>
+<p>Chaque message porte un champ <code>msgId</code> (8 octets hex aléatoires, généré par l'adaptateur). Si un message QoS 1 était en cours d'envoi au moment de la coupure, il peut être republié après reconnexion. Le serveur d'alertes et le front web peuvent utiliser <code>msgId</code> + <code>seq</code> pour détecter et ignorer les doublons côté consommateur.</p>
+<p>L'adaptateur lui-même ne déduplique pas : chaque élément du tampon est republié une seule fois.</p>
+
+<h2>Préservation de l'ordre</h2>
+<p>L'ordre est préservé <strong>au sein de chaque file</strong> (FIFO). Les messages haute priorité sont republié avant les basse priorité. L'ordre relatif entre un heartbeat (basse) et un door event (haute) peut donc changer si les deux étaient dans le tampon au même moment — ce qui est acceptable : le serveur utilise les timestamps <code>ts</code> et <code>serverTs</code> pour reconstituer l'ordre temporel réel.</p>
+
+<h2>Ce qui n'est pas perdu pendant une coupure</h2>
+<ul>
+  <li>Tous les événements porte (door open/closed) — haute priorité, QoS 1</li>
+  <li>Tous les événements boot — haute priorité, QoS 1</li>
+  <li>Tous les acks de commande — haute priorité, QoS 1</li>
+  <li>Les messages availability — publiés à la reconnexion (reconstruit l'état)</li>
+</ul>
+
+<h2>Ce qui peut être perdu (acceptable)</h2>
+<ul>
+  <li>Les lectures de telemetry les plus anciennes si le tampon basse priorité est plein (coupure longue)</li>
+  <li>Les heartbeats (le serveur détecte le node offline après le timeout habituel)</li>
+</ul>
+</body>
+</html>

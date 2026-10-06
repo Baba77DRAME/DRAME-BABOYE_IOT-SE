@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><title> Architecture adaptateur MQTT</title></head>
+<body>
+<h1>Partie C — Adaptateur MQTT du simulateur</h1>
+
+<h2>Contrainte absolue</h2>
+<p><code>simulator.js</code> et <code>scenarios.js</code> ne sont <strong>pas modifiés</strong>. L'adaptateur se branche sur l'EventEmitter du simulateur via <code>sim.on('message')</code> et lui envoie les commandes via <code>sim.handleCommand(cmd)</code>.</p>
+
+<h2>Vue d'ensemble</h2>
+<pre>
+┌─────────────────────────────────────────────────────────────────┐
+│                        index.js (CLI)                           │
+│  --output mqtt  →  createMqttOutput()                          │
+│  --output console  →  createConsoleOutput()   (inchangé)       │
+└──────────────────┬──────────────────────────────────────────────┘
+                   │ sim.on('message')
+                   ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    outputs/mqtt.js                               │
+│                                                                  │
+│  ┌───────────────────────────┐    ┌──────────────────────────┐  │
+│  │  Connexion MQTT           │    │  Tampon hors-ligne        │  │
+│  │  - backoff exponentiel    │    │  outputs/buffer.js        │  │
+│  │  - LWT site/availability  │    │  - file haute prio (60 %) │  │
+│  │  - availability 28 nodes  │    │  - file basse prio (40 %) │  │
+│  │  - abonnement .../cmd     │    │  - drain() à reconnexion  │  │
+│  └──────────┬────────────────┘    └──────────────────────────┘  │
+│             │ pub()                                              │
+└─────────────┼────────────────────────────────────────────────────┘
+              │ MQTT TCP 1883
+              ▼
+┌─────────────────────┐
+│   Broker Mosquitto  │
+│   port 1883 (MQTT)  │
+│   port 9001 (WS)    │
+└──────┬──────────────┘
+       │
+  ┌────┴────────┐──────────────┐
+  ▼             ▼              ▼
+server.js    front web      outils
+(alertes)   (dashboard)    (mosquitto_sub…)
+</pre>
+
+<h2>Arborescence des fichiers</h2>
+<pre>
+support/
+├── src/
+│   ├── simulator.js          ← NE PAS MODIFIER
+│   ├── scenarios.js          ← NE PAS MODIFIER
+│   ├── facility.js
+│   ├── species.js
+│   ├── prng.js
+│   ├── index.js              ← inchangé (ajoute le choix --output mqtt)
+│   ├── server.js             ← serveur d'alertes (partie B)
+│   └── outputs/
+│       ├── console.js        ← inchangé
+│       ├── mqtt.js           ← adaptateur MQTT (partie C)
+│       └── buffer.js         ← tampon prioritaire (partie C)
+├── AdaptMQTT/
+│   ├── Architecture.html     ← ce fichier
+│   ├── Strategie-Buffer.html
+│   ├── Configuration.html
+│   └── Tests.html
+├── .env.example              ← mis à jour (partie C)
+├── mosquitto/
+├── docker-compose.yml
+└── front/
+</pre>
+
+<h2>Fichiers créés en Partie C</h2>
+<table border="1" cellpadding="6">
+  <thead>
+    <tr><th>Fichier</th><th>Rôle</th><th>Modifie un existant ?</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>src/outputs/mqtt.js</td><td>Adaptateur MQTT complet avec buffer et backoff</td><td>Oui — réécriture complète</td></tr>
+    <tr><td>src/outputs/buffer.js</td><td>Tampon prioritaire hors-ligne</td><td>Non — nouveau fichier</td></tr>
+    <tr><td>.env.example</td><td>Référence de toutes les variables d'environnement</td><td>Oui — enrichi</td></tr>
+    <tr><td>AdaptMQTT/*.html</td><td>Documentation partie C</td><td>Non — nouveau dossier</td></tr>
+  </tbody>
+</table>
+
+<h2>Flux de données</h2>
+<table border="1" cellpadding="6">
+  <thead>
+    <tr><th>Direction</th><th>Chemin</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Simulateur → Broker</td>
+      <td>sim.on('message') → wrap() → pub() → client.publish()</td>
+      <td>Telemetry, events, heartbeat, ack. Bufférisé si hors ligne.</td>
+    </tr>
+    <tr>
+      <td>Broker → Simulateur</td>
+      <td>client.on('message') → sim.handleCommand()</td>
+      <td>Commandes lamp, setpoint, safety_cut, reboot…</td>
+    </tr>
+    <tr>
+      <td>Adaptateur → Broker</td>
+      <td>À la connexion : publish availability (28 nodes + site)</td>
+      <td>QoS 1, retain true. Reconstruit l'état connu du broker.</td>
+    </tr>
+    <tr>
+      <td>Broker → Tous (LWT)</td>
+      <td>Déconnexion TCP brutale → broker publie le LWT</td>
+      <td>reptiles/v1/site/availability {status: "offline"}, retain true</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Vérification simulator.js / scenarios.js</h2>
+<p>L'adaptateur utilise uniquement l'interface publique du simulateur :</p>
+<ul>
+  <li><code>sim.on('message', handler)</code> — écoute les messages émis</li>
+  <li><code>sim.handleCommand(cmd)</code> — transmet une commande reçue par MQTT</li>
+  <li><code>sim.start(tickRealMs)</code> et <code>sim.stop()</code> — appelés par index.js</li>
+</ul>
+<p><strong>Aucune ligne de simulator.js ni de scenarios.js n'est modifiée.</strong></p>
+</body>
+</html>
