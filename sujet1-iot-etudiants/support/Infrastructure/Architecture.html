@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><title>Partie D — Architecture infrastructure</title></head>
+<body>
+<h1>Partie D — Infrastructure Docker</h1>
+
+<h2>Vue d'ensemble</h2>
+<pre>
+                    HÔTE (localhost)
+┌───────────────────────────────────────────────────────────────┐
+│                                                               │
+│  :8080 ──────── front (nginx) ─────── /usr/share/nginx/html/ │
+│                                                               │
+│  :1883 ─┐                                                     │
+│          ├──── réseau iot-net ────── mosquitto :1883 (TCP)    │
+│  :9001 ─┘                      └── mosquitto :9001 (WS)      │
+│                                         ▲         ▲          │
+│                          simulator ─────┘         │          │
+│                          server    ───────────────┘          │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
+         ▲              ▲
+    navigateur       nodes réels
+  ws://localhost:9001  mqtt://IP_hôte:1883
+</pre>
+
+<h2>Services</h2>
+<table border="1" cellpadding="6">
+  <thead>
+    <tr><th>Service</th><th>Image / Dockerfile</th><th>Ports exposés</th><th>Réseau</th><th>Rôle</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>mosquitto</td>
+      <td>eclipse-mosquitto:2</td>
+      <td>1883 (TCP), 9001 (WS)</td>
+      <td>iot-net</td>
+      <td>Broker MQTT. TCP pour les nodes internes et réels. WebSocket pour le navigateur.</td>
+    </tr>
+    <tr>
+      <td>simulator</td>
+      <td>docker/node.Dockerfile</td>
+      <td>aucun</td>
+      <td>iot-net</td>
+      <td>Simulateur 28 nodes → publie sur mosquitto via MQTT TCP interne.</td>
+    </tr>
+    <tr>
+      <td>server</td>
+      <td>docker/node.Dockerfile</td>
+      <td>aucun</td>
+      <td>iot-net</td>
+      <td>Serveur d'alertes → souscrit aux mesures, publie les alertes.</td>
+    </tr>
+    <tr>
+      <td>front</td>
+      <td>docker/front.Dockerfile</td>
+      <td>8080 → 80</td>
+      <td>aucun</td>
+      <td>nginx sert l'interface web statique. Le navigateur se connecte en WebSocket directement à :9001.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Réseau Docker : iot-net</h2>
+<p>Réseau bridge nommé <code>reptiles-iot</code>. Seuls mosquitto, simulator et server en font partie. Le conteneur front n'en a pas besoin : nginx ne fait que servir des fichiers statiques.</p>
+<p>Les noms DNS internes : <code>mosquitto</code>, <code>simulator</code>, <code>server</code>. Le simulateur se connecte à <code>mqtt://mosquitto:1883</code>.</p>
+
+<h2>Flux de connexion</h2>
+<table border="1" cellpadding="6">
+  <thead>
+    <tr><th>Origine</th><th>Destination</th><th>Protocole</th><th>Chemin</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>simulator</td><td>mosquitto</td><td>MQTT TCP</td><td>iot-net interne, port 1883</td></tr>
+    <tr><td>server</td><td>mosquitto</td><td>MQTT TCP</td><td>iot-net interne, port 1883</td></tr>
+    <tr><td>Navigateur</td><td>mosquitto</td><td>MQTT over WS</td><td>hôte port 9001 → mosquitto:9001</td></tr>
+    <tr><td>Navigateur</td><td>front (nginx)</td><td>HTTP</td><td>hôte port 8080 → nginx:80</td></tr>
+    <tr><td>Node réel (ESP32)</td><td>mosquitto</td><td>MQTT TCP</td><td>IP hôte port 1883 → mosquitto:1883</td></tr>
+  </tbody>
+</table>
+
+<h2>Arborescence complète</h2>
+<pre>
+support/
+├── docker-compose.yml
+├── .dockerignore
+├── docker/
+│   ├── node.Dockerfile       ← simulator + server (Node 20 Alpine)
+│   └── front.Dockerfile      ← nginx Alpine (multi-stage)
+├── mosquitto/
+│   ├── mosquitto.conf        ← listener 1883 + 9001 WS, auth, persistance
+│   ├── passwd                ← PBKDF2-SHA512 : simulator, server, frontend, admin
+│   └── acl                   ← ACL par rôle
+├── src/
+│   ├── index.js
+│   ├── simulator.js          ← inchangé
+│   ├── scenarios.js          ← inchangé
+│   ├── server.js
+│   └── outputs/
+│       ├── mqtt.js
+│       ├── buffer.js
+│       └── console.js
+└── front/
+    └── index.html
+</pre>
+
+<h2>Démarrage et ordre des dépendances</h2>
+<pre>
+mosquitto  →  healthcheck OK  →  simulator (depends_on)
+                              →  server    (depends_on)
+front      →  (indépendant, démarre immédiatement)
+</pre>
+<p>Le healthcheck mosquitto publie un message test toutes les 5 s. Dès que le broker répond, simulator et server démarrent automatiquement.</p>
+
+<h2>Volumes</h2>
+<table border="1" cellpadding="6">
+  <thead>
+    <tr><th>Volume</th><th>Montage</th><th>Utilité</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>mosquitto-data (named)</td><td>/mosquitto/data</td><td>Persistance des messages QoS 1 et des sessions entre redémarrages</td></tr>
+    <tr><td>./mosquitto/mosquitto.conf (bind :ro)</td><td>/mosquitto/config/mosquitto.conf</td><td>Configuration broker</td></tr>
+    <tr><td>./mosquitto/passwd (bind :ro)</td><td>/mosquitto/config/passwd</td><td>Mots de passe PBKDF2</td></tr>
+    <tr><td>./mosquitto/acl (bind :ro)</td><td>/mosquitto/config/acl</td><td>ACL par utilisateur</td></tr>
+  </tbody>
+</table>
+</body>
+</html>

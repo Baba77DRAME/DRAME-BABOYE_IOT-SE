@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Supervision IoT — Centre de réhabilitation pour reptiles</title>
+  <!-- local dev : cp node_modules/mqtt/dist/mqtt.min.js front/mqtt.min.js -->
+  <script src="./mqtt.min.js"></script>
+</head>
+<body>
+
+<h1>Centre de réhabilitation pour reptiles — Supervision IoT</h1>
+
+<p>
+  <strong>Connexion :</strong> <span id="conn-status">déconnecté</span>
+  &nbsp;|&nbsp;
+  <strong>Broker :</strong> <input id="broker-url" value="ws://localhost:9001" size="30">
+  &nbsp;
+  <button id="btn-connect" onclick="connect()">Connecter</button>
+  <button id="btn-disconnect" onclick="disconnect()" disabled>Déconnecter</button>
+  &nbsp;|&nbsp;
+  <strong>Simulateur :</strong> <span id="site-status">-</span>
+</p>
+
+<hr>
+
+<h2>Alertes actives — <span id="alert-count">0</span></h2>
+<div id="alerts-section">
+  <em>Aucune alerte</em>
+</div>
+
+<hr>
+
+<h2>Zones</h2>
+<div id="zones-section"></div>
+
+<hr>
+
+<h2>Portes bâtiment</h2>
+<div id="doors-section"></div>
+
+<hr>
+<p><small>Dernière mise à jour : <span id="last-update">-</span></small></p>
+
+<script>
+'use strict';
+
+const ROOT = 'reptiles/v1';
+
+const ZONES_DEF = [
+  {
+    id: 'DES', label: 'Salle désertique',
+    room: 'N-ROOM-DES',
+    enclosures: ['N-DES-01','N-DES-02','N-DES-03','N-DES-04','N-DES-05','N-DES-06'],
+  },
+  {
+    id: 'TRO', label: 'Salle tropicale',
+    room: 'N-ROOM-TRO',
+    enclosures: ['N-TRO-01','N-TRO-02','N-TRO-03','N-TRO-04','N-TRO-05','N-TRO-06'],
+  },
+  {
+    id: 'QUA', label: 'Quarantaine (bâtiment annexe)',
+    room: 'N-ROOM-QUA',
+    enclosures: ['N-QUA-01','N-QUA-02','N-QUA-03','N-QUA-04'],
+  },
+  {
+    id: 'SOI', label: 'Soins intensifs',
+    room: 'N-ROOM-SOI',
+    enclosures: ['N-SOI-01','N-SOI-02','N-SOI-03'],
+  },
+  {
+    id: 'EXT', label: 'Enclos extérieurs',
+    room: null,
+    enclosures: ['N-EXT-01','N-EXT-02'],
+  },
+];
+
+const BUILDING_DOORS = [
+  { id: 'N-DOOR-MAIN', label: 'Entrée principale', zone: 'BAT' },
+  { id: 'N-DOOR-SAS',  label: 'Sas sanitaire',     zone: 'BAT' },
+  { id: 'N-DOOR-FEED', label: 'Local nourriture',   zone: 'BAT' },
+];
+
+const state = {
+  nodes: {},
+  alerts: {},
+  siteStatus: '-',
+};
+
+let client = null;
+
+function zoneOf(nodeId) {
+  if (nodeId.startsWith('N-ROOM-')) return nodeId.slice(7);
+  if (nodeId.startsWith('N-DOOR-')) return 'BAT';
+  return nodeId.split('-')[1];
+}
+
+function getNode(nodeId) {
+  if (!state.nodes[nodeId]) {
+    state.nodes[nodeId] = {
+      availability: null,
+      readings: {},
+      door: null,
+      heartbeat: null,
+      acks: [],
+    };
+  }
+  return state.nodes[nodeId];
+}
+
+function handleMessage(topic, payload) {
+  let msg;
+  try { msg = JSON.parse(payload.toString()); } catch { return; }
+
+  if (topic === `${ROOT}/site/availability`) {
+    state.siteStatus = msg.status ?? '-';
+    scheduleRender();
+    return;
+  }
+
+  const parts = topic.split('/');
+  if (parts.length < 6) return;
+
+  if (parts[2] === 'alerts') {
+    const zone   = parts[3];
+    const nodeId = parts[4];
+    const key    = `${nodeId}:${msg.code}`;
+    if (msg.level === 'resolved' || msg.status === 'resolved') {
+      delete state.alerts[key];
+    } else {
+      state.alerts[key] = { ...msg, zone };
+    }
+    scheduleRender();
+    return;
+  }
+
+  if (parts[2] !== 'nodes') return;
+  const zone      = parts[3];
+  const nodeId    = parts[4];
+  const topicType = parts[5];
+  const n = getNode(nodeId);
+
+  if (topicType === 'availability') {
+    n.availability = msg.status ?? null;
+    scheduleRender();
+    return;
+  }
+
+  if (topicType === 'heartbeat') {
+    n.heartbeat = { battery: msg.battery, rssi: msg.rssi, fw: msg.fw, uptimeS: msg.uptimeS, ts: msg.serverTs ?? msg.ts };
+    if (n.availability !== 'online') { n.availability = 'online'; }
+    scheduleRender();
+    return;
+  }
+
+  if (topicType === 'telemetry' && msg.type === 'reading') {
+    n.readings[msg.sensor] = { value: msg.value, unit: msg.unit, ts: msg.serverTs ?? msg.ts };
+    scheduleRender();
+    return;
+  }
+
+  if (topicType === 'events') {
+    if (msg.type === 'door') {
+      n.door = { state: msg.state, ts: msg.serverTs ?? msg.ts };
+    }
+    if (msg.type === 'boot') {
+      n.availability = 'online';
+    }
+    scheduleRender();
+    return;
+  }
+
+  if (topicType === 'ack') {
+    n.acks.unshift({ cmdId: msg.cmdId, action: msg.action, ok: msg.ok, detail: msg.detail, ts: Date.now() });
+    if (n.acks.length > 3) n.acks.length = 3;
+    scheduleRender();
+    return;
+  }
+}
+
+function connect() {
+  const url = document.getElementById('broker-url').value.trim();
+  if (client) client.end(true);
+
+  const clientId = 'frontend-' + Math.random().toString(16).slice(2, 10);
+  client = mqtt.connect(url, {
+    clientId,
+    username: 'frontend',
+    password: 'frontend',
+    clean: true,
+    keepalive: 60,
+    reconnectPeriod: 3000,
+  });
+
+  document.getElementById('conn-status').textContent = 'connexion...';
+  document.getElementById('btn-connect').disabled = true;
+
+  client.on('connect', () => {
+    document.getElementById('conn-status').textContent = 'connecté (' + clientId + ')';
+    document.getElementById('btn-connect').disabled = true;
+    document.getElementById('btn-disconnect').disabled = false;
+
+    client.subscribe(`${ROOT}/nodes/+/+/telemetry`);
+    client.subscribe(`${ROOT}/nodes/+/+/events`);
+    client.subscribe(`${ROOT}/nodes/+/+/heartbeat`);
+    client.subscribe(`${ROOT}/nodes/+/+/availability`);
+    client.subscribe(`${ROOT}/nodes/+/+/ack`);
+    client.subscribe(`${ROOT}/alerts/#`);
+    client.subscribe(`${ROOT}/site/availability`);
+  });
+
+  client.on('reconnect', () => {
+    document.getElementById('conn-status').textContent = 'reconnexion...';
+  });
+
+  client.on('disconnect', () => {
+    document.getElementById('conn-status').textContent = 'déconnecté';
+    document.getElementById('btn-connect').disabled = false;
+    document.getElementById('btn-disconnect').disabled = true;
+  });
+
+  client.on('error', (err) => {
+    document.getElementById('conn-status').textContent = 'erreur: ' + err.message;
+    document.getElementById('btn-connect').disabled = false;
+    document.getElementById('btn-disconnect').disabled = true;
+  });
+
+  client.on('message', handleMessage);
+}
+
+function disconnect() {
+  if (client) {
+    client.end(false);
+    document.getElementById('conn-status').textContent = 'déconnecté';
+    document.getElementById('btn-connect').disabled = false;
+    document.getElementById('btn-disconnect').disabled = true;
+  }
+}
+
+function sendCommand(zone, nodeId, action, value) {
+  if (!client || !client.connected) { alert('Non connecté'); return; }
+  const cmdId = 'cmd-' + Date.now().toString(16) + '-' + Math.random().toString(16).slice(2, 6);
+  const payload = JSON.stringify({ v: 1, cmdId, target: nodeId, action, value, expiresAt: Date.now() + 30000 });
+  client.publish(`${ROOT}/nodes/${zone}/${nodeId}/cmd`, payload, { qos: 1 });
+}
+
+function fmtTs(ts) {
+  if (!ts) return '-';
+  return new Date(ts).toLocaleTimeString('fr-FR');
+}
+
+function fmtUptime(s) {
+  if (s == null) return '-';
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h + 'h' + String(m).padStart(2, '0');
+}
+
+function availBadge(avail) {
+  if (avail === 'online')  return '[EN LIGNE]';
+  if (avail === 'offline') return '[HORS LIGNE]';
+  return '[?]';
+}
+
+function doorBadge(door) {
+  if (!door) return '-';
+  return door.state === 'open' ? 'OUVERTE (' + fmtTs(door.ts) + ')' : 'fermée';
+}
+
+function renderNodeRow(nodeId, zone, isEnclosure) {
+  const n = state.nodes[nodeId] || {};
+  const r = n.readings || {};
+  const hb = n.heartbeat || {};
+  const avail = n.availability;
+  const rows = [];
+
+  let cells = '';
+
+  cells += '<td>' + nodeId + '</td>';
+  cells += '<td>' + availBadge(avail) + '</td>';
+
+  if (isEnclosure) {
+    const th = r.temp_hot  ? r.temp_hot.value.toFixed(2)  + ' °C' : '-';
+    const tc = r.temp_cold ? r.temp_cold.value.toFixed(2) + ' °C' : '-';
+    const lx = r.light     ? r.light.value + ' lx'               : '-';
+    cells += '<td>' + th + '</td><td>' + tc + '</td><td>' + lx + '</td>';
+  } else {
+    const ta = r.temp_ambient ? r.temp_ambient.value.toFixed(2) + ' °C' : '-';
+    cells += '<td colspan="3">' + ta + '</td>';
+  }
+
+  cells += '<td>' + doorBadge(n.door) + '</td>';
+
+  const bat = hb.battery != null ? hb.battery + '%' : '-';
+  const rssi = hb.rssi != null ? hb.rssi + ' dBm' : '-';
+  const uptime = fmtUptime(hb.uptimeS);
+  cells += '<td>' + bat + '</td><td>' + rssi + '</td><td>' + uptime + '</td>';
+
+  rows.push('<tr>' + cells + '</tr>');
+
+  if (isEnclosure) {
+    const ackText = (n.acks || []).map(a => (a.ok ? 'OK' : 'ERR') + ' ' + a.action + ' ' + a.detail).join(' | ') || '';
+    rows.push(
+      '<tr><td colspan="9">' +
+      'Lampe: ' +
+      '<button onclick="sendCommand(\'' + zone + '\',\'' + nodeId + '\',\'lamp\',\'on\')">ON</button>' +
+      '<button onclick="sendCommand(\'' + zone + '\',\'' + nodeId + '\',\'lamp\',\'off\')">OFF</button>' +
+      '<button onclick="sendCommand(\'' + zone + '\',\'' + nodeId + '\',\'lamp\',\'auto\')">AUTO</button>' +
+      '&nbsp; Lumière: ' +
+      '<button onclick="sendCommand(\'' + zone + '\',\'' + nodeId + '\',\'light\',\'on\')">ON</button>' +
+      '<button onclick="sendCommand(\'' + zone + '\',\'' + nodeId + '\',\'light\',\'off\')">OFF</button>' +
+      '<button onclick="sendCommand(\'' + zone + '\',\'' + nodeId + '\',\'light\',\'auto\')">AUTO</button>' +
+      '&nbsp; Consigne: <input id="sp-' + nodeId + '" type="number" size="4" value="35" min="20" max="50">' +
+      '<button onclick="sendCommand(\'' + zone + '\',\'' + nodeId + '\',\'setpoint\',+document.getElementById(\'sp-' + nodeId + '\').value)">Set</button>' +
+      '&nbsp; Sécurité: ' +
+      '<button onclick="sendCommand(\'' + zone + '\',\'' + nodeId + '\',\'safety_cut\',\'on\')">COUPER</button>' +
+      '<button onclick="sendCommand(\'' + zone + '\',\'' + nodeId + '\',\'safety_cut\',\'off\')">RÉTABLIR</button>' +
+      '&nbsp; <button onclick="sendCommand(\'' + zone + '\',\'' + nodeId + '\',\'reboot\',null)">REBOOT</button>' +
+      (ackText ? ' &nbsp; Ack: ' + ackText : '') +
+      '</td></tr>'
+    );
+  }
+
+  return rows.join('\n');
+}
+
+function renderZone(zoneDef) {
+  const zoneId = zoneDef.id;
+  let html = '<details open><summary><strong>' + zoneId + ' — ' + zoneDef.label + '</strong></summary>\n';
+  html += '<table border="1" cellpadding="4">\n';
+  html += '<thead><tr><th>Node</th><th>État</th><th>T° chaud</th><th>T° froid</th><th>Lumière</th><th>Porte</th><th>Batterie</th><th>RSSI</th><th>Uptime</th></tr></thead>\n';
+  html += '<tbody>\n';
+
+  if (zoneDef.room) {
+    const roomNode = zoneDef.room;
+    html += renderNodeRow(roomNode, zoneId, false);
+    html += '<tr><td colspan="9"><hr></td></tr>\n';
+  }
+
+  for (const enc of zoneDef.enclosures) {
+    html += renderNodeRow(enc, zoneId, true);
+  }
+
+  html += '</tbody></table></details>\n<br>\n';
+  return html;
+}
+
+function renderAlerts() {
+  const keys = Object.keys(state.alerts);
+  document.getElementById('alert-count').textContent = keys.length;
+  const section = document.getElementById('alerts-section');
+  if (keys.length === 0) {
+    section.innerHTML = '<em>Aucune alerte</em>';
+    return;
+  }
+  let html = '<table border="1" cellpadding="4"><thead><tr><th>Niveau</th><th>Code</th><th>Node</th><th>Zone</th><th>Message</th><th>Heure</th></tr></thead><tbody>';
+  for (const key of keys) {
+    const a = state.alerts[key];
+    const level = (a.level || '').toUpperCase();
+    html += '<tr><td>' + level + '</td><td>' + (a.code || '') + '</td><td>' + (a.node || '') + '</td><td>' + (a.zone || '') + '</td><td>' + (a.message || '') + '</td><td>' + fmtTs(a.ts || a.serverTs) + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  section.innerHTML = html;
+}
+
+function renderDoors() {
+  let html = '<table border="1" cellpadding="4"><thead><tr><th>Porte</th><th>ID Node</th><th>État</th><th>Batterie</th><th>RSSI</th><th>Uptime</th></tr></thead><tbody>';
+  for (const d of BUILDING_DOORS) {
+    const n = state.nodes[d.id] || {};
+    const hb = n.heartbeat || {};
+    const bat = hb.battery != null ? hb.battery + '%' : '-';
+    const rssi = hb.rssi != null ? hb.rssi + ' dBm' : '-';
+    const uptime = fmtUptime(hb.uptimeS);
+    html += '<tr><td>' + d.label + '</td><td>' + d.id + '</td><td>' + doorBadge(n.door) + '</td><td>' + bat + '</td><td>' + rssi + '</td><td>' + uptime + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('doors-section').innerHTML = html;
+}
+
+function render() {
+  document.getElementById('site-status').textContent = state.siteStatus;
+  renderAlerts();
+  let zonesHtml = '';
+  for (const z of ZONES_DEF) zonesHtml += renderZone(z);
+  document.getElementById('zones-section').innerHTML = zonesHtml;
+  renderDoors();
+  document.getElementById('last-update').textContent = new Date().toLocaleTimeString('fr-FR');
+}
+
+let renderPending = false;
+function scheduleRender() {
+  if (renderPending) return;
+  renderPending = true;
+  setTimeout(() => { renderPending = false; render(); }, 500);
+}
+
+render();
+connect();
+</script>
+</body>
+</html>

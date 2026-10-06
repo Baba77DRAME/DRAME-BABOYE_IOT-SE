@@ -1,0 +1,10 @@
+node_modules/
+.env
+*.log
+.DS_Store
+.git/
+AdaptMQTT/
+Composants/
+Infrastructure/
+MQTT/
+front/mqtt.min.js

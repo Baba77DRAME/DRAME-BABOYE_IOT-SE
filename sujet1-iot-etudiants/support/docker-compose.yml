@@ -1,0 +1,81 @@
+services:
+
+  # ── 1. Broker MQTT ──────────────────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"   # MQTT TCP  — nodes réels + simulateur (interne)
+      - "9001:9001"   # MQTT WS   — front web (navigateur)
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/passwd:/mosquitto/config/passwd:ro
+      - ./mosquitto/acl:/mosquitto/config/acl:ro
+      - mosquitto-data:/mosquitto/data
+    networks:
+      - iot-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_pub -h 127.0.0.1 -p 1883 -u admin -P admin -t health/check -m ping -q 0 2>/dev/null || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # ── 2. Simulateur ───────────────────────────────────────────────────────────
+  simulator:
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+    environment:
+      MQTT_BROKER: mqtt://mosquitto:1883
+      MQTT_USER: simulator
+      MQTT_PASS: simulator
+      MQTT_CLIENT_ID: simulator-main
+      MQTT_ROOT_TOPIC: reptiles/v1
+      MQTT_CLEAN_SESSION: "true"
+      MQTT_KEEPALIVE: "60"
+      MQTT_RECONNECT_MIN_DELAY: "3000"
+      MQTT_RECONNECT_MAX_DELAY: "30000"
+      MQTT_BUFFER_MAX: "500"
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - iot-net
+    restart: unless-stopped
+
+  # ── 3. Serveur d'alertes ────────────────────────────────────────────────────
+  server:
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+    command: ["node", "src/server.js"]
+    environment:
+      MQTT_BROKER: mqtt://mosquitto:1883
+      MQTT_USER: server
+      MQTT_PASS: server
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - iot-net
+    restart: unless-stopped
+
+  # ── 4. Front web ────────────────────────────────────────────────────────────
+  front:
+    build:
+      context: .
+      dockerfile: docker/front.Dockerfile
+    ports:
+      - "8080:80"   # http://localhost:8080
+    restart: unless-stopped
+
+# ── Réseau interne ─────────────────────────────────────────────────────────────
+networks:
+  iot-net:
+    name: reptiles-iot
+    driver: bridge
+
+# ── Volumes persistants ────────────────────────────────────────────────────────
+volumes:
+  mosquitto-data:

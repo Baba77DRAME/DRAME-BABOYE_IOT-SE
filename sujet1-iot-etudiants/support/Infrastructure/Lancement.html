@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><title>Partie D — Lancement et tests</title></head>
+<body>
+<h1>Lancement et procédure de test</h1>
+
+<h2>Prérequis</h2>
+<ul>
+  <li>Docker Desktop démarré</li>
+  <li>Ports libres : 1883, 9001, 8080</li>
+</ul>
+
+<h2>Lancement complet</h2>
+<pre>cd sujet1-iot-etudiants/support/
+docker compose up --build</pre>
+<p>Lors du premier lancement, Docker construit les images. Les lancements suivants utilisent le cache :</p>
+<pre>docker compose up</pre>
+<p>En arrière-plan :</p>
+<pre>docker compose up -d --build</pre>
+
+<h2>Ce qui se passe au démarrage</h2>
+<table border="1" cellpadding="6">
+  <thead><tr><th>Étape</th><th>Service</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>mosquitto</td><td>Démarre, charge la config, ouvre les ports 1883 et 9001</td></tr>
+    <tr><td>2</td><td>mosquitto</td><td>Healthcheck : publie un message test toutes les 5 s</td></tr>
+    <tr><td>3</td><td>front</td><td>nginx démarre immédiatement (indépendant)</td></tr>
+    <tr><td>4</td><td>simulator + server</td><td>Démarrent dès que mosquitto est healthy</td></tr>
+    <tr><td>5</td><td>simulator</td><td>Publie availability online pour les 28 nodes (retain)</td></tr>
+    <tr><td>6</td><td>simulator</td><td>Démarre la simulation — mesures toutes les 30 s / 5 min</td></tr>
+    <tr><td>7</td><td>server</td><td>Souscrit aux topics nodes/# — surveillance des alertes active</td></tr>
+  </tbody>
+</table>
+
+<h2>Vérification rapide</h2>
+<pre>docker compose ps</pre>
+<p>Tous les services doivent être en état <code>running</code> et mosquitto <code>healthy</code>.</p>
+
+<h2>Accès</h2>
+<table border="1" cellpadding="6">
+  <thead><tr><th>Interface</th><th>URL</th></tr></thead>
+  <tbody>
+    <tr><td>Front web (dashboard)</td><td>http://localhost:8080</td></tr>
+    <tr><td>Broker MQTT TCP (nodes réels)</td><td>mqtt://localhost:1883</td></tr>
+    <tr><td>Broker MQTT WebSocket (navigateur)</td><td>ws://localhost:9001</td></tr>
+  </tbody>
+</table>
+
+<h2>Logs</h2>
+<pre>
+docker compose logs -f             # tous les services
+docker compose logs -f simulator   # simulateur uniquement
+docker compose logs -f server      # alertes uniquement
+docker compose logs -f mosquitto   # broker uniquement
+</pre>
+
+<h2>Arrêt</h2>
+<pre>
+docker compose down          # arrête les conteneurs, conserve les volumes
+docker compose down -v       # arrête ET supprime les volumes (réinitialisation complète)
+</pre>
+
+<h2>Reconstruction après modification du code</h2>
+<pre>docker compose up --build</pre>
+
+<h2>Tests à effectuer</h2>
+
+<h3>Test 1 — Dashboard en direct</h3>
+<ol>
+  <li>Ouvrir http://localhost:8080</li>
+  <li>Connexion MQTT : statut <em>connecté</em></li>
+  <li>Simulateur : statut <em>online</em></li>
+  <li>Après 30 s : températures et lumières apparaissent dans les zones</li>
+</ol>
+
+<h3>Test 2 — Commande depuis le front</h3>
+<ol>
+  <li>Zone DES → N-DES-01 → bouton <strong>Lampe OFF</strong></li>
+  <li>La ligne affiche <code>OK lamp off</code> (ACK)</li>
+</ol>
+
+<h3>Test 3 — Alerte automatique</h3>
+<ol>
+  <li>Attendre ~2 min (scénario incidents déclenche des pannes aléatoires)</li>
+  <li>Le tableau Alertes actives se remplit</li>
+  <li>Les logs du serveur confirment : <code>docker compose logs -f server</code></li>
+</ol>
+
+<h3>Test 4 — Résistance au redémarrage du broker</h3>
+<ol>
+  <li><code>docker compose restart mosquitto</code></li>
+  <li>Simulator et server reconnectent automatiquement (backoff exponentiel)</li>
+  <li>Les messages bufférisés pendant la coupure sont republié après reconnexion</li>
+</ol>
+
+<h3>Test 5 — Node réel (ESP32)</h3>
+<ol>
+  <li>Configurer l'ESP32 avec l'IP de la machine hôte, port 1883</li>
+  <li>Credentials : <code>simulator / simulator</code> (ou créer un compte dédié)</li>
+  <li>Publier sur <code>reptiles/v1/nodes/DES/N-DES-01/telemetry</code></li>
+  <li>Les données apparaissent dans le front web</li>
+</ol>
+</body>
+</html>
