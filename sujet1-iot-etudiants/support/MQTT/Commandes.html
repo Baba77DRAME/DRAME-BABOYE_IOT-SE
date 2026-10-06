@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>B6 — Commandes et Acquittements</title>
+</head>
+<body>
+
+<h1>Commandes et Acquittements</h1>
+
+<p>Actions disponibles dans le simulateur : <code>lamp</code>, <code>light</code>, <code>setpoint</code>, <code>safety_cut</code>, <code>interval</code>, <code>reboot</code>, <code>identify</code>.</p>
+
+<hr>
+
+<h2>Cycle commande → traitement → ACK</h2>
+
+<pre>
+Front / Serveur
+  │
+  ├─ génère cmdId unique ("cmd-{date}-{seq}")
+  ├─ génère correlationId (lié à la session ou à l'action UI)
+  ├─ calcule expiresAt = now + 30 000 ms
+  │
+  └─▶ PUBLISH QoS1  reptiles/v1/nodes/{zone}/{node-id}/cmd
+        {
+          "v": 1,
+          "cmdId": "cmd-20241005-001",
+          "correlationId": "session-abc-42",
+          "target": "N-DES-04",
+          "zone": "DES",
+          "action": "lamp",
+          "value": "off",
+          "issuedAt": 1700000700000,
+          "expiresAt": 1700000730000
+        }
+
+Simulateur / Node réel
+  │
+  ├─ reçoit la commande
+  ├─ vérifie expiresAt > now → sinon ignore et ne répond pas
+  ├─ traite l'action (handleCommand dans simulator.js)
+  │
+  └─▶ PUBLISH QoS1  reptiles/v1/nodes/{zone}/{node-id}/ack
+        {
+          "v": 1,
+          "msgId": "…",
+          "node": "N-DES-04",
+          "zone": "DES",
+          "ts": 1700000701000,
+          "serverTs": 1700000701045,
+          "seq": 210,
+          "type": "ack",
+          "cmdId": "cmd-20241005-001",
+          "correlationId": "session-abc-42",
+          "action": "lamp",
+          "ok": true,
+          "detail": "ok"
+        }
+</pre>
+
+<hr>
+
+<h2>Champs de la commande</h2>
+
+<table border="1">
+<tr><th>Champ</th><th>Type</th><th>Description</th></tr>
+<tr><td>v</td><td>integer</td><td>Version du format (1)</td></tr>
+<tr><td>cmdId</td><td>string</td><td>Identifiant unique de la commande — format : cmd-{YYYYMMDD}-{seq}</td></tr>
+<tr><td>correlationId</td><td>string</td><td>Identifiant de corrélation côté client (session UI, identifie qui a envoyé)</td></tr>
+<tr><td>target</td><td>string</td><td>Node destinataire (ex: "N-DES-04")</td></tr>
+<tr><td>zone</td><td>string</td><td>Zone du node</td></tr>
+<tr><td>action</td><td>string</td><td>Action demandée (lamp, light, setpoint, safety_cut, interval, reboot, identify)</td></tr>
+<tr><td>value</td><td>string | number | boolean</td><td>Valeur associée à l'action (absent pour reboot, identify)</td></tr>
+<tr><td>issuedAt</td><td>integer (ms)</td><td>Horodatage d'émission</td></tr>
+<tr><td>expiresAt</td><td>integer (ms)</td><td>Expiration — le node ignore toute commande reçue après cette date</td></tr>
+</table>
+
+<hr>
+
+<h2>Actions disponibles et valeurs valides</h2>
+
+<table border="1">
+<tr><th>action</th><th>value</th><th>Cible</th><th>Effet simulateur</th></tr>
+<tr><td>lamp</td><td>"on" | "off" | "auto"</td><td>Enclos intérieur (kind=enclosure)</td><td>lampMode = value</td></tr>
+<tr><td>light</td><td>"on" | "off" | "auto"</td><td>Enclos intérieur</td><td>lightMode = value</td></tr>
+<tr><td>setpoint</td><td>20 à 50 (°C)</td><td>Enclos intérieur</td><td>setpoint = value</td></tr>
+<tr><td>safety_cut</td><td>true | "on" | false | "off"</td><td>Enclos intérieur</td><td>safetyCut = true/false</td></tr>
+<tr><td>interval</td><td>5 à 3600 (secondes)</td><td>Tout node avec period</td><td>period = value</td></tr>
+<tr><td>reboot</td><td>(absent)</td><td>Tous</td><td>offlineUntil = now + 20 s</td></tr>
+<tr><td>identify</td><td>(absent)</td><td>Tous</td><td>detail="led_blink_10s"</td></tr>
+</table>
+
+<hr>
+
+<h2>Comportements selon les cas d'erreur</h2>
+
+<table border="1">
+<tr><th>Cas</th><th>Comportement</th><th>detail dans ACK</th></tr>
+<tr>
+  <td>Node offline</td>
+  <td>Pas d'ACK. Le serveur attend jusqu'à expiresAt, puis publie une alerte de timeout sur le topic alerts.</td>
+  <td>(aucun ACK)</td>
+</tr>
+<tr>
+  <td>Commande expirée (reçue après expiresAt)</td>
+  <td>Le node ou le simulateur ignore silencieusement la commande. Pas d'ACK.</td>
+  <td>(aucun ACK)</td>
+</tr>
+<tr>
+  <td>Action inconnue</td>
+  <td>ACK ok=false</td>
+  <td>"unknown_action"</td>
+</tr>
+<tr>
+  <td>Valeur invalide (setpoint hors 20-50, interval hors 5-3600)</td>
+  <td>ACK ok=false</td>
+  <td>"bad_value"</td>
+</tr>
+<tr>
+  <td>Action non supportée par ce type de node (ex: lamp sur un node salle)</td>
+  <td>ACK ok=false</td>
+  <td>"not_supported"</td>
+</tr>
+<tr>
+  <td>Relais collé (thermostat_stuck) — lamp off envoyé mais relais ne répond pas</td>
+  <td>ACK ok=true mais avec avertissement</td>
+  <td>"applied_but_relay_feedback_on"</td>
+</tr>
+</table>
+
+<hr>
+
+<h2>Timeout et non-réponse</h2>
+
+<p>Le serveur démarre un timer de 30 s dès l'émission de la commande. Si aucun ACK avec le <code>cmdId</code> correspondant n'est reçu avant <code>expiresAt</code> :</p>
+
+<ol>
+<li>Le serveur marque la commande comme expirée.</li>
+<li>Il publie une alerte sur <code>reptiles/v1/alerts/{zone}/{node-id}</code> :
+<pre>
+{
+  "v": 1,
+  "type": "alert",
+  "level": "warning",
+  "code": "cmd_timeout",
+  "cmdId": "cmd-20241005-001",
+  "action": "lamp",
+  "message": "Aucun ACK reçu de N-DES-04 pour la commande lamp"
+}
+</pre>
+</li>
+<li>Le front affiche un indicateur de commande non confirmée.</li>
+</ol>
+
+<hr>
+
+<h2>Exemple complet — commande safety_cut</h2>
+
+<p>Scénario : opérateur coupe le chauffage de tous les enclos DES (alerte lampe bloquée).</p>
+
+<p>1. Envoi commande :</p>
+<pre>
+Topic : reptiles/v1/nodes/DES/N-DES-04/cmd
+{
+  "v": 1,
+  "cmdId": "cmd-20241005-010",
+  "correlationId": "incident-lamp-DES-04",
+  "target": "N-DES-04",
+  "zone": "DES",
+  "action": "safety_cut",
+  "value": true,
+  "issuedAt": 1700001000000,
+  "expiresAt": 1700001030000
+}
+</pre>
+
+<p>2. ACK reçu :</p>
+<pre>
+Topic : reptiles/v1/nodes/DES/N-DES-04/ack
+{
+  "v": 1,
+  "node": "N-DES-04",
+  "zone": "DES",
+  "ts": 1700001000500,
+  "seq": 312,
+  "type": "ack",
+  "cmdId": "cmd-20241005-010",
+  "correlationId": "incident-lamp-DES-04",
+  "action": "safety_cut",
+  "ok": true,
+  "detail": "ok"
+}
+</pre>
+
+</body>
+</html>

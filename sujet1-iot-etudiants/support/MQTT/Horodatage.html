@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>B7 — Horodatage</title>
+</head>
+<body>
+
+<h1>Horodatage</h1>
+
+<hr>
+
+<h2>Qui fait foi</h2>
+
+<p><strong>Le timestamp retenu pour affichage et stockage est le timestamp serveur (<code>serverTs</code>), sauf si le timestamp node (<code>ts</code>) est fiable et récent.</strong></p>
+
+<p>Règle de sélection :</p>
+<pre>
+if (ts > 1_700_000_000_000 AND |serverTs - ts| &lt; 60_000) {
+    tsAffichage = ts          // horloge node synchronisée et cohérente
+} else {
+    tsAffichage = serverTs    // clock non synchronisée ou dérive excessive
+}
+</pre>
+
+<hr>
+
+<h2>Justification par acteur</h2>
+
+<table border="1">
+<tr><th>Acteur</th><th>Rôle vis-à-vis de l'horodatage</th><th>Autorité</th></tr>
+<tr>
+  <td>Node (simulateur)</td>
+  <td>Estampille chaque message avec son horloge locale (<code>ts</code>). Avant synchronisation NTP, <code>ts = now - bootAt</code> (valeur depuis l'époque 0, ex : 5200 ms = 5,2 s de uptime).</td>
+  <td>Autorité principale si clockSynced = true</td>
+</tr>
+<tr>
+  <td>Passerelle LoRa (QUA/EXT)</td>
+  <td>Ne modifie pas le <code>ts</code> du message. Ajoute un horodatage de transit si nécessaire (champ optionnel <code>gwTs</code>).</td>
+  <td>Référence de transit</td>
+</tr>
+<tr>
+  <td>Adaptateur MQTT (serveur)</td>
+  <td>Ajoute <code>serverTs = Date.now()</code> au moment de la réception du message simulateur. C'est l'horodatage de référence si le node n'est pas synchronisé.</td>
+  <td>Autorité de fallback</td>
+</tr>
+<tr>
+  <td>Broker Mosquitto</td>
+  <td>Ne modifie pas les payloads. Pas d'horodatage broker.</td>
+  <td>Aucune</td>
+</tr>
+<tr>
+  <td>Navigateur (front web)</td>
+  <td>N'horodate jamais les données affichées. Utilise uniquement <code>tsAffichage</code> reçu dans les messages.</td>
+  <td>Aucune</td>
+</tr>
+</table>
+
+<hr>
+
+<h2>Cas particuliers</h2>
+
+<h3>Node sans synchronisation NTP (boot récent)</h3>
+<p>Le simulateur implémente : si <code>clockSynced = false</code>, alors <code>ts = now - bootAt</code> (millisecondes depuis l'epoch 0). Un message avec <code>ts = 5200</code> indique un node démarré depuis 5,2 secondes. Le seuil <code>ts > 1_700_000_000_000</code> (après novembre 2023) détecte ce cas et bascule vers <code>serverTs</code>.</p>
+
+<h3>Coupure réseau et bufferisation</h3>
+<p>Pendant une coupure réseau de moins de 10 minutes (exigence projet), les nodes conservent leurs mesures en RAM. À la reconnexion, les messages sont publiés avec leur <code>ts</code> original (horloge node). <code>serverTs</code> reflète le moment de réception par le broker — potentiellement 10 minutes après <code>ts</code>. Le serveur détecte les messages en retard par la condition <code>serverTs - ts > 2 × period</code> et les marque comme <code>"late": true</code> dans la base de données pour ne pas déclencher de fausses alertes.</p>
+
+<h3>Reconnexion tardive et messages en retard</h3>
+<p>Un message en retard ne doit pas déclencher une alerte "porte ouverte" si l'événement date de plus de 30 secondes. Le serveur compare <code>serverTs - ts</code> et ignore les alertes déclenchées par des événements arrivés plus de <code>expiresAt</code> secondes après leur émission.</p>
+
+<h3>Dérive d'horloge</h3>
+<p>Le simulateur modélise une dérive via <code>clockDriftMsPerMin</code>. Tolérance acceptée : ±5 secondes. Au-delà, le serveur bascule sur <code>serverTs</code>. La dérive est détectée quand <code>|serverTs - ts| > 5000</code> malgré <code>ts > 1_700_000_000_000</code>.</p>
+
+<hr>
+
+<h2>Champs dans le message</h2>
+
+<table border="1">
+<tr><th>Champ</th><th>Valeur</th><th>Description</th></tr>
+<tr><td>ts</td><td>ms epoch (node)</td><td>Horloge du device au moment de l'émission</td></tr>
+<tr><td>serverTs</td><td>ms epoch (serveur)</td><td>Date.now() au moment de la réception par l'adaptateur MQTT</td></tr>
+<tr><td>late</td><td>boolean (optionnel)</td><td>true si serverTs − ts > 2 × period du node</td></tr>
+</table>
+
+</body>
+</html>

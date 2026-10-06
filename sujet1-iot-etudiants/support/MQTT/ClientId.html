@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>B5 — Convention ClientId</title>
+</head>
+<body>
+
+<h1>Convention ClientId</h1>
+
+<p>Un clientId MQTT doit être unique par connexion. Une collision provoque la déconnexion du client précédent. La convention ci-dessous garantit l'unicité et permet d'identifier l'origine d'une connexion dans les logs Mosquitto.</p>
+
+<hr>
+
+<h2>Format général</h2>
+
+<pre>
+{rôle}-{identifiant}-{suffixe-aléatoire-6-chars}
+</pre>
+
+<p>Le suffixe aléatoire (hex lowercase) évite les collisions lors des reconnexions rapides ou des instances multiples.</p>
+
+<hr>
+
+<h2>Conventions par rôle</h2>
+
+<table border="1">
+<tr><th>Rôle</th><th>Format</th><th>Exemples</th></tr>
+<tr>
+  <td>Node réel (hardware)</td>
+  <td>node-{node-id}-{6hex}</td>
+  <td>node-N-DES-01-a3f2c1<br>node-N-EXT-02-b4d3e2</td>
+</tr>
+<tr>
+  <td>Simulateur (process unique)</td>
+  <td>simulator-main-{6hex}</td>
+  <td>simulator-main-c5e4f3</td>
+</tr>
+<tr>
+  <td>Front web (navigateur)</td>
+  <td>front-{session-id courte}-{6hex}</td>
+  <td>front-s1a2b3-d6f5a4<br>front-s9z8y7-e7a6b5</td>
+</tr>
+<tr>
+  <td>Administrateur / outil CLI</td>
+  <td>admin-{username}-{6hex}</td>
+  <td>admin-root-f8b7c6<br>admin-alice-a1b2c3</td>
+</tr>
+<tr>
+  <td>Service serveur (watchdog, alerting)</td>
+  <td>server-{service-name}-{6hex}</td>
+  <td>server-watchdog-b2c3d4<br>server-alerting-c3d4e5</td>
+</tr>
+</table>
+
+<hr>
+
+<h2>Règles d'unicité</h2>
+
+<ul>
+<li>Le suffixe aléatoire 6 hex est regénéré à chaque démarrage ou reconnexion.</li>
+<li>Mosquitto est configuré avec <code>allow_duplicate_clientid false</code> (défaut) : si deux connexions arrivent avec le même clientId, la plus ancienne est déconnectée.</li>
+<li>Le simulateur n'utilise qu'un seul clientId pour l'ensemble des 28 nodes simulés — c'est l'adaptateur qui gère le démultiplexage par topic.</li>
+</ul>
+
+<hr>
+
+<h2>Identification dans les logs Mosquitto</h2>
+
+<p>Avec cette convention, les logs Mosquitto permettent d'identifier immédiatement le type de client :</p>
+
+<pre>
+1700000000: New connection from 192.168.1.10 on port 1883.
+1700000000: New client connected from 192.168.1.10 as node-N-DES-01-a3f2c1 (p2, c1, k60, u'n-des-01').
+1700000001: New client connected from 192.168.1.20 as simulator-main-c5e4f3 (p2, c1, k60, u'simulator').
+1700000002: New client connected from 192.168.1.30 as front-s1a2b3-d6f5a4 (p2, c0, k30, u'frontend').
+</pre>
+
+</body>
+</html>

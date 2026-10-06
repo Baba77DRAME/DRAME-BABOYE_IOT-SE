@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>B4 — Last Will</title>
+</head>
+<body>
+
+<h1>Last Will Testament (LWT)</h1>
+
+<hr>
+
+<h2>Définition du LWT</h2>
+
+<p>Chaque node (ou l'adaptateur MQTT du simulateur pour chaque node simulé) configure un LWT à la connexion au broker.</p>
+
+<table border="1">
+<tr><th>Paramètre</th><th>Valeur</th></tr>
+<tr><td>Topic</td><td>reptiles/v1/nodes/{zone}/{node-id}/availability</td></tr>
+<tr><td>Payload</td><td>{"v":1,"node":"{node-id}","zone":"{zone}","status":"offline","ts":0}</td></tr>
+<tr><td>QoS</td><td>1</td></tr>
+<tr><td>Retain</td><td>true</td></tr>
+<tr><td>Délai de publication (willDelayInterval)</td><td>0 s (publication immédiate à la déconnexion)</td></tr>
+</table>
+
+<hr>
+
+<h2>Publication de l'état online</h2>
+
+<p>Dès la connexion réussie au broker, l'adaptateur MQTT publie sur le même topic :</p>
+
+<pre>
+Topic  : reptiles/v1/nodes/DES/N-DES-01/availability
+QoS    : 1
+Retain : true
+Payload :
+{
+  "v": 1,
+  "node": "N-DES-01",
+  "zone": "DES",
+  "status": "online",
+  "ts": 1700000000000
+}
+</pre>
+
+<p>Ce message écrase le LWT offline éventuellement retenu par le broker lors d'une déconnexion précédente.</p>
+
+<hr>
+
+<h2>Comportement lors d'une déconnexion brutale</h2>
+
+<ol>
+<li>Le simulateur / node perd la connexion TCP sans envoyer de DISCONNECT.</li>
+<li>Le broker Mosquitto détecte l'absence de PINGREQ dans le délai keepAlive (configuré à 60 s).</li>
+<li>Le broker publie automatiquement le LWT sur <code>reptiles/v1/nodes/{zone}/{node-id}/availability</code> avec <code>status=offline</code> et retain=true.</li>
+<li>Le front web reçoit le message et passe le node en état "offline" dans l'interface.</li>
+<li>Le serveur démarre un watchdog : si aucun message n'est reçu depuis ce node pendant 2 × heartbeatPeriod, une alerte <code>node_offline</code> est publiée sur <code>reptiles/v1/alerts/{zone}/{node-id}</code>.</li>
+</ol>
+
+<hr>
+
+<h2>Séquence complète de connexion</h2>
+
+<pre>
+Node/adaptateur → Broker   CONNECT (willTopic, willPayload offline, willQoS=1, willRetain=1, keepAlive=60)
+Broker → Node              CONNACK
+Node/adaptateur → Broker   PUBLISH availability status=online QoS=1 retain=1
+Broker → Front             PUBLISH availability status=online (abonnés notifiés)
+
+--- fonctionnement normal ---
+
+--- déconnexion brutale ---
+[timeout keepAlive 60 s]
+Broker → Front             PUBLISH availability status=offline (LWT, retained)
+Serveur                    watchdog déclenché après 2 × heartbeatPeriod sans message
+</pre>
+
+<hr>
+
+<h2>Cas particulier — simulateur multi-nodes</h2>
+
+<p>Le simulateur est un processus unique qui émet des messages pour 28 nodes. L'adaptateur MQTT gère 28 connexions logiques (une par node) ou une connexion unique avec LWT de niveau site.</p>
+
+<p><strong>Option retenue : connexion unique avec LWT de niveau site.</strong></p>
+
+<table border="1">
+<tr><th>Paramètre</th><th>Valeur</th></tr>
+<tr><td>Topic LWT site</td><td>reptiles/v1/site/availability</td></tr>
+<tr><td>Payload</td><td>{"v":1,"status":"offline","source":"simulator","ts":0}</td></tr>
+<tr><td>QoS</td><td>1</td></tr>
+<tr><td>Retain</td><td>true</td></tr>
+</table>
+
+<p>Si le simulateur s'arrête, tous les nodes simulés sont considérés offline. Le front affiche une bannière "Simulateur déconnecté".</p>
+
+</body>
+</html>

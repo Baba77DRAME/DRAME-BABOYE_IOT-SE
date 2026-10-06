@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>B3 — QoS et Retain</title>
+</head>
+<body>
+
+<h1>QoS et Retain</h1>
+
+<hr>
+
+<h2>Tableau récapitulatif</h2>
+
+<table border="1">
+<tr>
+  <th>Type de message</th>
+  <th>Topic (pattern)</th>
+  <th>QoS</th>
+  <th>Retain</th>
+  <th>Justification</th>
+</tr>
+<tr>
+  <td>Télémétrie (reading)</td>
+  <td>nodes/{zone}/{node}/telemetry</td>
+  <td>0</td>
+  <td>false</td>
+  <td>Mesures périodiques (30 s ou 5 min). Une mesure perdue est compensée par la suivante. QoS 0 minimise le trafic réseau et la charge broker.</td>
+</tr>
+<tr>
+  <td>Événement porte (door)</td>
+  <td>nodes/{zone}/{node}/events</td>
+  <td>1</td>
+  <td>false</td>
+  <td>Exigence : visible en moins de 2 s. QoS 1 garantit la livraison au broker. Retain=false : l'état courant de la porte est géré côté serveur, pas par le broker.</td>
+</tr>
+<tr>
+  <td>Boot</td>
+  <td>nodes/{zone}/{node}/events</td>
+  <td>1</td>
+  <td>false</td>
+  <td>Événement critique pour détecter les redémarrages inattendus. QoS 1 garantit la réception.</td>
+</tr>
+<tr>
+  <td>Heartbeat</td>
+  <td>nodes/{zone}/{node}/heartbeat</td>
+  <td>0</td>
+  <td>false</td>
+  <td>Signal de vie périodique. La perte occasionnelle est tolérée — le watchdog serveur détecte l'absence après 2 × heartbeatPeriod.</td>
+</tr>
+<tr>
+  <td>Disponibilité — online</td>
+  <td>nodes/{zone}/{node}/availability</td>
+  <td>1</td>
+  <td>true</td>
+  <td>Retain=true : un nouveau client front qui s'abonne voit immédiatement l'état courant de chaque node. QoS 1 assure la persistance chez le broker.</td>
+</tr>
+<tr>
+  <td>Disponibilité — offline (LWT)</td>
+  <td>nodes/{zone}/{node}/availability</td>
+  <td>1</td>
+  <td>true</td>
+  <td>Identique au online. Le retain assure que le front connaît l'état offline même après reconnexion tardive.</td>
+</tr>
+<tr>
+  <td>Alerte</td>
+  <td>alerts/{zone}/{node}</td>
+  <td>1</td>
+  <td>true</td>
+  <td>Retain=true : une alerte active reste visible pour tout nouveau client front. QoS 1 garantit la livraison. L'alerte est effacée (payload vide ou status=resolved) quand la condition disparaît.</td>
+</tr>
+<tr>
+  <td>Commande</td>
+  <td>nodes/{zone}/{node}/cmd</td>
+  <td>1</td>
+  <td>false</td>
+  <td>QoS 1 : la commande doit parvenir au node (ou au simulateur). Retain=false : une commande périmée ne doit pas être exécutée par un node qui se reconnecte.</td>
+</tr>
+<tr>
+  <td>Acquittement (ack)</td>
+  <td>nodes/{zone}/{node}/ack</td>
+  <td>1</td>
+  <td>false</td>
+  <td>QoS 1 : l'ACK doit parvenir au serveur pour fermer la boucle commande. Retain=false : un ACK d'une ancienne commande n'a plus de valeur.</td>
+</tr>
+</table>
+
+<hr>
+
+<h2>Justifications détaillées</h2>
+
+<h3>Alertes critiques</h3>
+<p>QoS 1 + retain=true. Une alerte de température ou de porte ouverte ne doit jamais être silencieusement perdue. Le retain garantit qu'un opérateur qui ouvre le tableau de bord en cours d'incident voit immédiatement les alertes actives sans avoir à attendre un nouveau message. Quand la condition est résolue, le serveur publie un message de résolution sur le même topic (retain=true, payload avec <code>"status":"resolved"</code>) pour effacer l'alerte persistée.</p>
+
+<h3>Ouverture de porte</h3>
+<p>QoS 1 + retain=false. L'exigence de 2 secondes impose QoS 1 pour garantir la livraison sans perte silencieuse. Retain=false car l'état courant de la porte (ouverte/fermée) est reconstruit par le serveur à partir du dernier événement reçu, et publié séparément sur le topic availability ou dans un état agrégé — le broker ne doit pas conserver un état door_open figé.</p>
+
+<h3>État des nodes (availability)</h3>
+<p>QoS 1 + retain=true. Le Last Will Testament est configuré avec ces mêmes paramètres. Sans retain, un nouveau client front ne saurait pas qu'un node est offline tant qu'aucun nouveau message n'arrive sur ce topic. Avec retain, le broker répond immédiatement avec l'état persisté.</p>
+
+<h3>Commandes</h3>
+<p>QoS 1 + retain=false. Une commande doit arriver au broker même si le node est temporairement déconnecté (session persistante côté MQTT). Retain=false est impératif : si un node redémarre, il ne doit pas rejouer une commande <code>safety_cut</code> envoyée 10 minutes plus tôt. La gestion de l'expiration (champ <code>expiresAt</code>) est faite côté serveur.</p>
+
+<h3>ACK</h3>
+<p>QoS 1 + retain=false. L'ACK ferme la boucle commande → traitement → résultat. Il doit parvenir au serveur même si la connexion est temporairement dégradée. Retain=false : un ACK d'une ancienne commande ne doit pas être rejoué à un nouveau client.</p>
+
+</body>
+</html>

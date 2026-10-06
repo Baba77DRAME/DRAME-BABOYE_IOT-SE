@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>B2 — Format des messages</title>
+</head>
+<body>
+
+<h1>Format des messages</h1>
+
+<p>Tous les messages sont en JSON UTF-8. Le champ <code>v</code> est la version du format (actuellement <strong>1</strong>).</p>
+<p>Les champs <code>node</code>, <code>ts</code>, <code>seq</code> sont présents dans tous les messages — ils correspondent exactement aux champs émis par le simulateur.</p>
+
+<hr>
+
+<h2>Champs communs</h2>
+
+<table border="1">
+<tr><th>Champ</th><th>Type</th><th>Description</th><th>Exemple</th></tr>
+<tr><td>v</td><td>integer</td><td>Version du format</td><td>1</td></tr>
+<tr><td>msgId</td><td>string (UUID v4)</td><td>Identifiant unique du message, ajouté par l'adaptateur MQTT</td><td>"a3f2c1d0-…"</td></tr>
+<tr><td>node</td><td>string</td><td>Identifiant du node simulateur</td><td>"N-DES-01"</td></tr>
+<tr><td>zone</td><td>string</td><td>Zone du node, déduite par l'adaptateur</td><td>"DES"</td></tr>
+<tr><td>enclosure</td><td>string | null</td><td>Identifiant de l'enclos si applicable</td><td>"DES-01"</td></tr>
+<tr><td>ts</td><td>integer (ms epoch)</td><td>Horodatage du device (fourni par le node)</td><td>1700000000000</td></tr>
+<tr><td>serverTs</td><td>integer (ms epoch)</td><td>Horodatage de réception par l'adaptateur MQTT</td><td>1700000000050</td></tr>
+<tr><td>seq</td><td>integer</td><td>Numéro de séquence croissant du simulateur</td><td>42</td></tr>
+<tr><td>type</td><td>string</td><td>Type du message</td><td>"reading"</td></tr>
+</table>
+
+<hr>
+
+<h2>Message — Télémétrie (reading)</h2>
+
+<p>Topic : <code>reptiles/v1/nodes/{zone}/{node-id}/telemetry</code></p>
+
+<h3>Enclos intérieur (temp_hot, temp_cold, light)</h3>
+<pre>
+{
+  "v": 1,
+  "msgId": "a3f2c1d0-4e5b-4c6d-8f7a-1b2c3d4e5f60",
+  "node": "N-DES-01",
+  "zone": "DES",
+  "enclosure": "DES-01",
+  "ts": 1700000000000,
+  "serverTs": 1700000000052,
+  "seq": 42,
+  "type": "reading",
+  "sensor": "temp_hot",
+  "value": 38.5,
+  "unit": "C"
+}
+</pre>
+
+<h3>Salle (temp_ambient)</h3>
+<pre>
+{
+  "v": 1,
+  "msgId": "b4c3d2e1-5f6a-4b7c-9d8e-2c3d4e5f6a70",
+  "node": "N-ROOM-DES",
+  "zone": "DES",
+  "enclosure": null,
+  "ts": 1700000060000,
+  "serverTs": 1700000060041,
+  "seq": 87,
+  "type": "reading",
+  "sensor": "temp_ambient",
+  "value": 25.1,
+  "unit": "C"
+}
+</pre>
+
+<hr>
+
+<h2>Message — Événement porte (door)</h2>
+
+<p>Topic : <code>reptiles/v1/nodes/{zone}/{node-id}/events</code></p>
+
+<pre>
+{
+  "v": 1,
+  "msgId": "c5d4e3f2-6a7b-4c8d-0e9f-3d4e5f6a7b80",
+  "node": "N-DES-01",
+  "zone": "DES",
+  "enclosure": "DES-01",
+  "ts": 1700000120000,
+  "serverTs": 1700000120018,
+  "seq": 103,
+  "type": "door",
+  "state": "open"
+}
+</pre>
+
+<p>La porte se ferme :</p>
+<pre>
+{
+  "v": 1,
+  "msgId": "d6e5f4a3-7b8c-4d9e-1f0a-4e5f6a7b8c90",
+  "node": "N-DES-01",
+  "zone": "DES",
+  "enclosure": "DES-01",
+  "ts": 1700000240000,
+  "serverTs": 1700000240014,
+  "seq": 104,
+  "type": "door",
+  "state": "closed"
+}
+</pre>
+
+<hr>
+
+<h2>Message — Heartbeat</h2>
+
+<p>Topic : <code>reptiles/v1/nodes/{zone}/{node-id}/heartbeat</code></p>
+
+<pre>
+{
+  "v": 1,
+  "msgId": "e7f6a5b4-8c9d-4e0f-2a1b-5f6a7b8c9d00",
+  "node": "N-DES-01",
+  "zone": "DES",
+  "enclosure": "DES-01",
+  "ts": 1700000300000,
+  "serverTs": 1700000300029,
+  "seq": 150,
+  "type": "heartbeat",
+  "uptimeS": 86400,
+  "rssi": -52,
+  "fw": "1.4.2"
+}
+</pre>
+
+<p>Node batterie (EXT) — champ <code>battery</code> présent :</p>
+<pre>
+{
+  "v": 1,
+  "msgId": "f8a7b6c5-9d0e-4f1a-3b2c-6a7b8c9d0e10",
+  "node": "N-EXT-01",
+  "zone": "EXT",
+  "enclosure": "EXT-01",
+  "ts": 1700000300000,
+  "serverTs": 1700000300112,
+  "seq": 11,
+  "type": "heartbeat",
+  "uptimeS": 7200,
+  "rssi": -78,
+  "fw": "1.4.2",
+  "battery": 87
+}
+</pre>
+
+<hr>
+
+<h2>Message — Boot</h2>
+
+<p>Topic : <code>reptiles/v1/nodes/{zone}/{node-id}/events</code></p>
+
+<pre>
+{
+  "v": 1,
+  "msgId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c50",
+  "node": "N-SOI-01",
+  "zone": "SOI",
+  "enclosure": "SOI-01",
+  "ts": 5200,
+  "serverTs": 1700000010000,
+  "seq": 1,
+  "type": "boot",
+  "reason": "power_on",
+  "rssi": -45,
+  "fw": "1.4.2"
+}
+</pre>
+
+<p>Note : <code>ts=5200</code> signifie que le node n'a pas encore synchronisé son horloge (5,2 s depuis le boot = depuis l'époque UNIX 0). L'adaptateur utilise <code>serverTs</code> comme temps d'affichage. Voir fichier Horodatage.</p>
+
+<hr>
+
+<h2>Message — Alerte</h2>
+
+<p>Topic : <code>reptiles/v1/alerts/{zone}/{node-id}</code></p>
+<p>Les alertes sont générées par le serveur sur analyse des mesures, pas directement par le node.</p>
+
+<pre>
+{
+  "v": 1,
+  "msgId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d60",
+  "node": "N-DES-04",
+  "zone": "DES",
+  "enclosure": "DES-04",
+  "ts": 1700000600000,
+  "serverTs": 1700000600000,
+  "seq": null,
+  "type": "alert",
+  "level": "critical",
+  "code": "temp_hot_overflow",
+  "message": "Point chaud DES-04 dépasse 50 °C (valeur : 52.1 °C)",
+  "value": 52.1,
+  "unit": "C",
+  "threshold": 50
+}
+</pre>
+
+<h3>Codes d'alerte définis</h3>
+<table border="1">
+<tr><th>code</th><th>level</th><th>Description</th></tr>
+<tr><td>temp_hot_overflow</td><td>critical</td><td>Température point chaud > seuil espèce</td></tr>
+<tr><td>temp_cold_underflow</td><td>critical</td><td>Température point froid &lt; minimum nuit</td></tr>
+<tr><td>door_open_timeout</td><td>warning</td><td>Porte ouverte depuis plus de 15 min</td></tr>
+<tr><td>probe_disconnected</td><td>critical</td><td>Sonde retourne -127 (déconnectée DS18B20)</td></tr>
+<tr><td>probe_por</td><td>warning</td><td>Sonde retourne 85 °C (Power-On Reset DS18B20)</td></tr>
+<tr><td>node_offline</td><td>warning</td><td>Node hors ligne depuis plus de 2 × heartbeatPeriod</td></tr>
+<tr><td>battery_low</td><td>warning</td><td>Batterie &lt; 20 %</td></tr>
+</table>
+
+<hr>
+
+<h2>Message — Commande</h2>
+
+<p>Topic : <code>reptiles/v1/nodes/{zone}/{node-id}/cmd</code></p>
+
+<pre>
+{
+  "v": 1,
+  "cmdId": "cmd-20241005-001",
+  "correlationId": "session-abc-42",
+  "target": "N-DES-04",
+  "zone": "DES",
+  "action": "lamp",
+  "value": "off",
+  "issuedAt": 1700000700000,
+  "expiresAt": 1700000730000
+}
+</pre>
+
+<hr>
+
+<h2>Message — Acquittement (ack)</h2>
+
+<p>Topic : <code>reptiles/v1/nodes/{zone}/{node-id}/ack</code></p>
+
+<pre>
+{
+  "v": 1,
+  "msgId": "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e70",
+  "node": "N-DES-04",
+  "zone": "DES",
+  "enclosure": "DES-04",
+  "ts": 1700000701000,
+  "serverTs": 1700000701045,
+  "seq": 210,
+  "type": "ack",
+  "cmdId": "cmd-20241005-001",
+  "correlationId": "session-abc-42",
+  "action": "lamp",
+  "ok": true,
+  "detail": "ok"
+}
+</pre>
+
+<p>Commande refusée :</p>
+<pre>
+{
+  "v": 1,
+  "msgId": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80",
+  "node": "N-DES-04",
+  "zone": "DES",
+  "enclosure": "DES-04",
+  "ts": 1700000702000,
+  "serverTs": 1700000702031,
+  "seq": 211,
+  "type": "ack",
+  "cmdId": "cmd-20241005-002",
+  "correlationId": "session-abc-43",
+  "action": "setpoint",
+  "ok": false,
+  "detail": "bad_value"
+}
+</pre>
+
+<hr>
+
+<h2>Message — Disponibilité (online / offline)</h2>
+
+<p>Topic : <code>reptiles/v1/nodes/{zone}/{node-id}/availability</code> — retained, QoS 1.</p>
+
+<p>Online (publié par l'adaptateur au démarrage ou reconnexion) :</p>
+<pre>
+{
+  "v": 1,
+  "node": "N-DES-01",
+  "zone": "DES",
+  "status": "online",
+  "ts": 1700000000000
+}
+</pre>
+
+<p>Offline (Last Will publié automatiquement par le broker en cas de déconnexion brutale) :</p>
+<pre>
+{
+  "v": 1,
+  "node": "N-DES-01",
+  "zone": "DES",
+  "status": "offline",
+  "ts": 0
+}
+</pre>
+
+<p>Note : le <code>ts</code> du LWT est 0 car le broker ne connaît pas l'heure exacte de déconnexion. Le front utilise l'heure de réception MQTT pour afficher l'heure de passage offline.</p>
+
+</body>
+</html>
