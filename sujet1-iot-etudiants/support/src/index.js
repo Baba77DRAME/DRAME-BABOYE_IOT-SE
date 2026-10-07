@@ -37,6 +37,7 @@ const sim = new Simulator({
 
 const outputs = {
   console: () => createConsoleOutput({ format: values.format }),
+  mqtt:    () => require('./outputs/mqtt').createMqttOutput(),
 };
 
 if (!outputs[values.output]) {
