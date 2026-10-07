@@ -1,0 +1,18 @@
+user admin
+topic readwrite #
+
+user simulator
+topic write reptiles/v1/nodes/#
+topic read reptiles/v1/nodes/+/+/cmd
+topic write reptiles/v1/site/availability
+
+user server
+topic read reptiles/v1/nodes/#
+topic write reptiles/v1/alerts/#
+topic write reptiles/v1/nodes/+/+/cmd
+
+user frontend
+topic read reptiles/v1/nodes/#
+topic read reptiles/v1/alerts/#
+topic read reptiles/v1/site/#
+topic write reptiles/v1/nodes/+/+/cmd
